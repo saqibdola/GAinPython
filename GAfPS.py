@@ -5,9 +5,10 @@ uco= uniform crossover
 spc = single point crossover
 mpc = multi point crossover
 mutate = standard mutation operator
-pimutate =  pairwise interchange mutation
+pmutate =  pairwise interchange mutation
 PVS proof steps from which initial population is generated is included in guru99.txt
 txt.txt file contains the proof steps for theorem and lemmas for the properties of Reo connectors in PVS
+theoremsandlemmas.txt contains seven theorems and 2 lemmas. 
 crossover operators works by randomly generating child solutions and then perform the crossover operation to obtain parent solution
 parent solution then goes through mutation operator.  """
 
@@ -253,7 +254,6 @@ with open("proofs.txt", 'r') as f:
                         print("SDT and MeanT is:", yyz, xzz)
                         total1 = sum(lasttt)
                         print("Total Time:", total1)
-                        #Fit = [2, 10, 3, 4, 8, 8, 3, 12, 10, 13, 11, 23, 25, 16, 5, 19, 11, 16, 23, 26, 3, 4, 14, 8, 8, 5, 6]
                         #yzx = fits.mean
                         #xyz= fitss.std()
                         #print("Mean is ", yzx)
