@@ -1,0 +1,169 @@
+
+%...........................Proof Sequences.............................../%
+
+inst 1 "lambda(x, y:sequence[Time]):false" grind.
+
+expand "strict_order?" typepred "<" expand "strict_order?" 
+flatten split expand "irreflexive?" propax expand "transitive?" skeep inst -4 "z""y""x" assert.
+
+skosimp expand "Teq" assert.
+
+skosimp expand "Teq" expand "next" assert.
+
+skeep expand "Tle" typepred "<" expand "strict_order?" flatten expand "transitive?" 
+inst -2 "T(s1)""T(s2)""T(s3)" assert.
+
+skeep expand "Tgt" typepred ">" expand "strict_order?" flatten expand "transitive?" inst -2 "T(s1)" "T(s2)" "T(s3)" assert.
+
+skosimp expand "Deq" assert.
+
+skosimp expand "Sync" expand "Fifo1" expand "Teq" expand "Deq" expand "Tle" expand "next" flatten split assert propax assert.
+
+skosimp expand "Sync" expand "Join" expand "Teq" expand "Deq" 
+assert flatten split assert assert.
+
+skosimp expand "Sync" expand "Join" expand "Teq" expand "Deq" assert flatten split assert 
+assert assert assert assert.
+
+skosimp expand "Sync" expand "Join" expand "SyncD" expand "Teq" expand "Deq" assert flatten split 
+assert assert.
+
+induct "n" skosimp expand "Sync" expand "Lossysync" expand "SyncD" expand "next" expand "suffix" expand "Teq" 
+expand "Deq" flatten
+split assert assert. skosimp inst -1 "A!1""B!1""C!1""D!1""E!1""F!1""G!1" expand "Lossysync" expand "Sync" expand "SyncD" expand "next" expand "suffix" expand "nth" expand "Teq" expand "Deq" flatten assert.
+
+skosimp expand "sequencer" expand "Tle" expand "Deq" expand "Fifo1e" expand "next" expand "Sync" expand "suffix" assert typepred "<" expand "strict_order?" expand "irreflexive" expand "transitive?" flatten assert grind.
+
+skosimp expand "Sync" expand "Teq" expand "Deq" assert.
+
+skosimp expand "SyncD" expand "Teq" expand "Fifo1" expand "Tle" expand "next" expand "Sync" expand "Deq" flatten assert typepred "<" 
+expand "strict_order?" expand "irreflexive?" expand "transitive?" flatten inst? inst? assert grind.
+
+skosimp skolem! inst? expand "Fifo1" expand "Sync" expand "Tle" expand "next" expand "Teq" expand "Deq" flatten assert.
+
+skosimp assert expand "Sync" expand "SyncD" expand "Fifo1" expand "next" expand "suffix" expand "Teq" expand "Deq" expand "Tle" assert flatten typepred "<" 
+expand "strict_order?" expand "transitive?" expand "irreflexive?" assert.
+
+induct "n" skosimp assert expand "Fifon" expand "Fifo1" 
+flatten assert.
+assert skosimp* expand Fifon -2 skosimp inst - s1!1 s3!1 assert expand "Fifo1" flatten assert expand "Deq" 
+assert hide-all-but (-1 -4 1) expand "Tle" typepred "<" expand "strict_order?" flatten expand "transitive?" 
+
+inst "T(s1!1)""T(s3!1)""T(s2!1)" assert.
+
+skosimp expand "Fifon" propax.
+
+skosimp expand "Tltt" expand "b2n" inst?.
+
+skosimp expand "Teqt" expand "b2n" inst?.
+
+skosimp expand "Teqt" expand "Tle" expand "Tltt" skosimp expand "b2n" inst? assert typepred "<" expand "strict_order?" flatten expand "transitive?" assert grind.
+
+skosimp expand "Teq" expand "Teqt" expand "str_nth" 
+expand "nth" expand "b2n" expand "FrS" propax.
+
+skosimp expand "Teqt" skosimp expand "str_nth" expand "nth" expand "FrS" propax.
+
+skosimp expand "Tltt" skosimp expand "FrS" propax.
+
+skosimp expand "Tgtt" skosimp typepred "t!1" expand "FrS" assert.
+
+skosimp expand "Merge" expand "Teqt" expand "next" expand "b2n" inst? skosimp expand "FrS" propax.
+
+skosimp expand "Timert" expand "Fifo1"
+ expand "SyncD" expand "Sync" expand "next" expand "Tle" expand "Teq" expand "Deq" flatten split inst -1 "t!1" assert assert expand "Tltt" skosimp grind.
+
+skosimp expand "Fifo1" expand "Sync" expand "SyncD" expand "Teqt" expand "Tle" 
+expand "Teq" expand "Deq" assert flatten split skosimp expand "str_nth" expand "nth" expand "FrS" propax.
+expand "next" assert 
+expand "str_nth" expand "nth" expand "FrS" propax. 
+
+induct "n" skosimp expand "Fifon" expand "Fifo1" expand "Sync" expand "SyncD" expand "Ttimern" expand "Teqtn" expand "Tlen" assert grind.
+skosimp* expand Fifon -2 expand Ttimern -5 skosimp inst? assert skosimp* assert grind.
+
+induct "n" skosimp expand Fifo1 -3 expand "Lossysync" expand "Sync" expand "SyncD" expand "Timert" 
+expand "Teq" expand "Teqt" expand "Tgt" assert split skosimp inst? -10 skosimp assert
+assert inst? -5 skosimp assert.
+skosimp* 
+inst? -1 expand "Fifo1" assert expand "Teqt" expand "Tgt" skosimp assert split skosimp typepred "t!1" inst? -3 assert grind 
+assert typepred ">" expand "strict_order?" flatten 
+expand "transitive?" assert grind.
+
+induct "n" skosimp expand "Lossysync" expand "Merge" expand "Sync" expand "SyncD" flatten assert split expand "next" expand "suffix" expand "nth" expand "Teqt" assert skosimp assert 
+expand "str_nth"  grind expand "Teqt" skosimp assert
+ grind.
+skosimp* expand "Teqt" inst? inst? inst? inst? inst? skosimp assert split typepred "j!1" assert grind assert grind assert grind assert grind grind.
+
+.......................................................................................................................................
+
+%...........................Proof Sequences to Integer Sequences.............................../%
+
+1 -1 2 -1 4 -1 -2 
+
+1 -1 2 -1 2 -1 4 -1 -2
+
+8 -1 2 -1 5 -1 2 -1 3 -1 2 -1 7 -1 4 -1 -2
+
+8 -1 2 -1 5 -1 2 -1 3 -1 2 -1 7 -1 4 -1 -2
+
+1 -1 2 -1 4 -1 -2
+
+1 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 3 -1 6 -1 4 -1 9 -1 4 -1 -2
+
+1 -1 2 -1 2 -1 2 -1 2 -1 4 -1 3 -1 6 -1 4 -1 4 -1 -2
+
+1 -1 2 -1 2 -1 2 -1 2 -1 4 -1 3 -1 6 -1 4 -1 4 -1 4 -1 4 -1 4 -1 -2
+
+1 -1 2 -1 2 -1 2 -1 2 -1 2 -1 4 -1 3 -1 6 -1 4 -1 4 -1 -2
+
+10 -1 1 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 3 -1 6 -1 4 -1 4 -1 1 -1 7 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 3 -1 4 -1 -2
+
+1 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 4 -1 5 -1 2 -1 2 -1 2 -1 3 -1 4 -1 11 -1 -2
+
+1 -1 2 -1 2 -1 2 -1 4 -1 -2
+
+1 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 3 -1 4 -1 5 -1 2 -1 2 -1 2 -1 3 -1 7 -1 7 -1 4 -1 11 -1 -2
+
+1 -1 12 -1 7 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 3 -1 4 -1 -2
+
+1 -1 4 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 4 -1 3 -1 5 -1 2 -1 2 -1 2 -1 4 -1 -2
+
+10 -1 1 -1 4 -1 2 -1 2 -1 3 -1 4 -1 4 -1 1 -1 2 -1 1 -1 7 -1 4 -1 2 -1 3 -1 4 -1 2 -1 4 -1 13 -1 2 -1 5 -1 2 -1 3 -1 2 -1 7 -1 4 -1 -2
+
+1 -1 2 -1 9 -1 -2
+
+1 -1 2 -1 2 -1 7 -1 -2
+
+1 -1 2 -1 2 -1 7 -1 -2
+
+1 -1 2 -1 2 -1 2 -1 1 -1 2 -1 7 -1 4 -1 5 -1 2 -1 3 -1 2 -1 4 -1 11 -1 -2
+
+1 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 9 -1 -2
+
+1 -1 2 -1 1 -1 2 -1 2 -1 2 -1 9 -1 -2
+
+1 -1 2 -1 1 -1 2 -1 9 -1 -2
+
+1 -1 2 -1 1 -1 5 -1 2 -1 4 -1 -2
+
+1 -1 2 -1 2 -1 2 -1 2 -1 7 -1 1 -1 2 -1 9 -1 -2
+
+1 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 3 -1 6 -1 7 -1 4 -1 4 -1 2 -1 1 -1 11 -1 -2
+
+1 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 4 -1 3 -1 6 -1 1 -1 2 -1 2 -1 2 -1 9 -1 2 -1 4 -1 2 -1 2 -1 2 -1 9 -1 -2
+
+10 -1 1 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 4 -1 11 -1 1 -1 2 -1 2 -1 1 -1 7 -1 4 -1 1 -1 4 -1 11 -1 -2
+
+10 -1 1 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 2 -1 4 -1 6 -1 1 -1 7 -1 1 -1 4 -1 4 -1 7 -1 1 -1 4 -1 1 -1 7 -1 2 -1 4 -1 2 -1 2 -1 1 -1 4 -1 6 -1 1 -1 5 -1 7 -1 4 -1 11 -1 4 -1 5 -1 2 -1 3 -1 2 -1 4 -1 11 -1 -2
+
+10 -1 1 -1 2 -1 2 -1 2 -1 2 -1 3 -1 4 -1 6 -1 2 -1 2 -1 2 -1 2 -1 4 -1 1 -1 4 -1 2 -1 11 -1 2 -1 1 -1 4 -1 11 -1 1 -1 2 -1 7 -1 7 -1 7 -1 7 -1 7 -1 1 -1 4 -1 6 -1 5 -1 4 -1 11 -1 4 -1 11 -1 4 -1 11 -1 4 -1 11 -1 11 -1 -2
+
+7 -1 11 -1 -2
+
+2 -1 5 -1 2 -1 3 -1 6 -1 2 -1 9 -1 2 -1 8 -1 7 -1 4 -1 -2
+
+1 -1 2 -1 2 -1 2 -1 3 -1 6 -1 4 -1 4 -1 -2
+
+1 -1 2 -1 2 -1 2 -1 4 -1 3 -1 5 -1 2 -1 3 -1 7 -1 4 -1 11 -1 -2
+
+1 -1 2 -1 2 -1 2 -1 3 -1 4 -1 -2

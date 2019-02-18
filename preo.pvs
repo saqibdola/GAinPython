@@ -1,0 +1,176 @@
+reop[T:TYPE+,(IMPORTING measure_integration@subset_algebra_def[T])
+                  S:sigma_algebra, (IMPORTING probability@probability_measure[T,S])
+         P:probability_measure]: THEORY 
+BEGIN 
+ IMPORTING probability@probability_space[T,S,P], 
+           probability@probability_measure[T,S],
+	    continuous_functions_aux[real],
+             measure_integration@measure_space[T,S],
+             measure_integration@measure_props[T,S,to_measure(P)],
+             measure_integration@real_borel
+
+
+Time: Type = posreal
+Data: TYPE = [T->real]
+
+i, n: var nat;
+x,y: VAR real;
+z,t: VAR T
+X,Y: VAR random_variable
+
+dfs?(F:[real->probability]):bool = EXISTS X: FORALL x: F(x) = P(X <= x)
+
+df: TYPE+ = (dfs?) CONTAINING (LAMBDA x: IF x < 0 THEN 0 ELSE 1 ENDIF)
+
+DD: TYPE= [Data, df]
+
+oah(x): probability= 1/2
+
+TDD: TYPE = [# T: sequence[Time],
+               D: sequence[DD] #]
+
+Input, T1, T2, TD, TD1, Output: VAR TDD
+
+<: (strict_order?[sequence[Time]])
+>: (strict_order?[sequence[Time]]) = 
+     LAMBDA (s1, s2: sequence[Time]): s2 < s1
+
+Teq(Input,Output): bool= T(Input) = T(Output)
+Tle(Input,Output): bool = T(Input) < T(Output)
+Tgt(Input, Output): bool = T(Input) > T(Output)
+Tneq(Input,Output): bool = T(Input) /= T(Output)  
+Deq(Input, Output): bool= D(Input) = D(Output)
+Dneq(Input, Output): bool= D(Input) /= D(Output);
+
+
+A: TYPE= Time 
+B: TYPE = Data
+
+pair: TYPE = [A,B]
+ArB:[pair -> A]; 
+BrA:[pair -> B]; 
+e?(T1)(e:Data): bool = FORALL(a:Time,e:Data): BrA(a,e)=e
+FrS(T1):bool =  FORALL (a:Time, b:Data): ArB(a,b)=a
+SrF(T1):bool =  FORALL (a:Time, b:Data): BrA(a,b)=b
+
+
+seq: var sequence[T];
+suffix(seq, n): sequence[T]  = (LAMBDA i:seq(i+n))
+
+next(T1): TDD = T1 WITH [T:=(suffix(T1`T, 1)),
+                         D:=(suffix(T1`D, 1))]
+
+nth(T1,n): TDD=  T1 WITH [T:= (suffix(T1`T, n)),
+                          D:= (suffix(T1`D, n))];
+
+Input1, Input2: VAR TDD
+
+str_nth1(n,TD1): RECURSIVE TDD = 
+	        	IF n=0 THEN TD1 
+	        	ELSE str_nth1(n-1, next(TD1))
+	        	ENDIF 
+		MEASURE n
+
+str_nth(n, TD1): TDD= nth(str_nth1(n,TD1), n)
+
+Teqt(T1,T2)(t:Time): bool = FORALL (n:nat): FrS(str_nth(n,T1)) + t = 
+                                          FrS(str_nth(n,T2))
+Tltt(T1,T2)(t:Time): bool = FORALL(n:nat): FrS(str_nth(n,T1)) + t < 
+                                          FrS(str_nth(n,T2))
+Tgtt(T1,T2)(t:Time): bool = FORALL (n:nat): FrS(str_nth(n,T1)) + t > 
+                                          FrS(str_nth(n,T2))
+
+pat: VAR setof[Data];
+member(pat): bool = EXISTS (DI: Data): pat(DI) 
+
+Sync(Input, Output): bool = Teq(Input, Output) & 
+	     	            Deq(Input, Output)
+
+SyncD(Input1, Input2): bool = Teq(Input1, Input2)
+	     	            
+zero: random_variable = (LAMBDA t: 0)
+one:  random_variable = (LAMBDA t: 1)
+
+RSync(Input, Output): bool= FORALL(n:nat):
+Output`D(n) = (zero, oah)
+OR Output`D(n) = (one, oah)
+&  Teq(Input, Output)
+
+c: VAR Data
+CSync(Input, Output)(p:probability): INDUCTIVE bool= 
+(Output`T(0)= Input`T(0) & 
+Output`D(0) = (Input`D(0)`1, (1-p)*Input`D(0)`2)) OR
+(EXISTS(c:Data):Output`D(0) = (c, (p)*Input`D(0)`2)
+& CSync(next(Input), next(Output))(p))
+
+PLSync(Input, Output)(q:probability): INDUCTIVE bool=
+(Output`T(0)= Input`T(0) &
+Output`D(0) = (Input`D(0)`1, (1-q)*Input`D(0)`2) & 
+PLSync(next(Input), next(Output))(q))
+& (Output`D(0)`2 = (q)*Input`D(0)`2 =>
+                         PLSync(next(Input), Output)(q))
+
+FFifo(Input, Output)(r:probability):INDUCTIVE bool=
+(Output`T(0) > Input`T(0) & Output`T(0) < Input`T(1) &
+Output`D(0) = (Input`D(0)`1, (1-r)*Input`D(0)`2) & 
+FFifo(next(Input), next(Output))(r))
+& (Output`D(0)`2= (r)*Input`D(0)`2 => 
+ FFifo(next(Input), Output)(r))
+
+Fifo1(Input,Output):bool= Tle(Input,Output) &
+Tle(Output,next(Input)) & Deq(Input,Output)
+
+LSync(Input, Output)(n:nat): INDUCTIVE bool = 
+                   (Output`D(n) = Input`D(n) 
+		 & LSync(next(Input), next(Output))(n))
+	         OR LSync(next(Input), Output)(n)
+
+A, B, C, C1, C2, D, E, F,G, H, inp, I, out: VAR TDD;
+
+Merge(s1,s2,s3:TDD): INDUCTIVE bool=                          
+(NOT s1`T(0)= s2`T(0)) &
+    (s1`T(0) < s2`T(0) =>    
+        s3`T(0) = s1`T(0) &  s3`D(0) = s1`D(0) 
+     & Merge(next(s1), s2, next(s3)))
+    & (s1`T(0) > s2`T(0) =>  
+              s3`T(0) = s2`T(0) & s3`D(0) = s2`D(0) & 
+                 Merge(s1, next(s2), next(s3)))
+
+p,q,r: probability
+
+proba: Theorem Sync(inp, I)  & Sync(inp, C) & Sync(C,A) & 
+LSync(C, I)(n) & Fifo1(C,E) & Fifo1(E,F) & LSync(F, C)(n)
+& Fifo1(I,H) & Sync(H,G) & SyncD(G,B) & Sync(G,E) &
+ FFifo(A,B)(r) & Sync(B,out) => 
+out`D(0)`1 = inp`D(0)`1 & Tle(inp, out)
+
+refinement: THEOREM FORALL (A,B,C:TDD): (EXISTS (D:TDD): 
+Fifo1(A,D) & RSync(D, B) & RSync(D,C)) =>
+(EXISTS (E,F:TDD): (Fifo1(A,E) & RSync(E,B)) & 
+         (Fifo1(A,F) & RSync(F,C)))
+
+timeout:[Data->bool]
+Timert(Input,Output)(t:Time)(d:Data): bool =
+                  FORALL(n:nat): FrS(str_nth(n,Input)) + t < 
+        FrS(str_nth(n,(next(Input)))) & Teqt(Input,Output)(t)
+                 & SrF(str_nth(n,Output)) = timeout(d)
+
+
+Tfifo(A,B)(t:Time)(d:Data): bool=EXISTS (R,S:TDD):
+Fifo1(A,R) & SyncD(R, S) & Timert(A,S)(t)(d) &
+Sync(R,B)
+
+Lemma1: LEMMA FORALL(A,B:TDD)(t:Time)(d:Data): EXISTS (E:TDD): 
+RSync(A,E) & Tfifo(E,B)(t)(d) <=> RSync(A,E) & 
+EXISTS(C,D:TDD): Fifo1(E,D) &
+SyncD(D,C) & Timert(E,C)(t)(d) & Sync(D,B)
+
+Lemma2: LEMMA FORALL(A,B:TDD)(t:Time)(d:Data): EXISTS (E:TDD): 
+Tfifo(A,E)(t)(d) & RSync(E,B) <=> EXISTS(C,D:TDD): Fifo1(A,D) &
+SyncD(D,C) & Timert(A,C)(t)(d) & Sync(D,E) & RSync(E,B) 
+
+equi: Theorem FORALL(A,B:TDD)(t:Time)(d:Data): Exists (E:TDD): RSync(A, E) & 
+Tfifo(E,B)(t)(d) <=> exists (R:TDD): Tfifo(A,R)(t)(d) & RSync(R, B)
+
+
+end reop

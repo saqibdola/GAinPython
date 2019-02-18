@@ -1,0 +1,133 @@
+treo: THEORY 
+BEGIN 
+
+Importing reou
+
+Input, T1, T2, TD1, Output: VAR TD
+
+n: var nat;
+
+str_nth1(n,TD1): RECURSIVE TD = 
+	        	IF n=0 THEN TD1 
+	        	ELSE str_nth1(n-1, next(TD1))
+	        	ENDIF 
+		MEASURE n
+str_nth(n, TD1): TD= nth(str_nth1(n,TD1), n)
+
+Inc_UT: AXIOM FORALL (T1, n): FrS(str_nth(n,T1)) < FrS(str_nth(n, next(T1)))
+Inc_T: AXIOM FORALL (T1:TD)(n:nat)(t:Time): FrS(str_nth(n,T1))+ t < FrS(str_nth(n, next(T1)))
+
+Teqt(T1,T2)(t:Time): bool = FORALL (n:nat): FrS(str_nth(n,T1)) + t = FrS(str_nth(n,T2))
+Tltt(T1,T2)(t:Time): bool = FORALL(n:nat): FrS(str_nth(n,T1)) + t < FrS(str_nth(n,T2))
+Tgtt(T1,T2)(t:Time): bool = FORALL (n:nat): FrS(str_nth(n,T1)) + t > FrS(str_nth(n,T2))
+
+
+Teqtn(T1, T2)(t:Time)(n:posnat): RECURSIVE bool= 
+                 IF n=1 THEN Teqt(T1,T2)(t) 
+                 ELSE EXISTS(T3:TD): Teqtn(T1,T3)(t)(n-1) & 
+                                     Teqt(T3,T2)(t)
+                 ENDIF MEASURE n
+
+Tlen(T1, T2)(n:posnat): RECURSIVE bool= 
+                IF n=1 THEN Tle(T1,T2)  
+                ELSE EXISTS(T3:TD): Tlen(T1,T3)(n-1) & 
+                                    Tle(T3,T2)
+                ENDIF Measure n
+
+s1,s2,s3: VAr TD
+
+timeout:[Data->bool]
+Timert(Input, Output)(t:Time)(d:Data): bool = FORALL (n:nat): 
+FrS(str_nth(n,Input)) + t < FrS(str_nth(n,(next(Input))))
+ & Teqt(Input, Output)(t) & SrF(str_nth(n, Output)) = timeout(d)
+
+Ttimern(T1, T2)(t:Time)(d:Data)(n:posnat): RECURSIVE bool= IF n=1 THEN 
+              Timert(T1,T2)(t)(d) ELSE Exists(T3:TD): Ttimern(T1,T3)(t)(d)(n-1) & Timert(T2,T3)(t)(d)
+ENDif MEASURE n
+
+off:[Data->bool]
+Offtimert(Input, Output)(t:Time)(d:Data): INDUCTIVE bool = 
+      FORALL(n:nat): SrF(str_nth(n,Input)) = off(d) OR 
+       FrS(str_nth(n,Input))+ t < FrS(str_nth(n,next(Input)))
+       & ( (SrF(nth(next(Input),n))= off(d)) 
+         IMPLIES (Offtimert(next(next(Input)), Output)(t)(d)))
+       & ( (NOT SrF(nth(next(Input),n)) = off(d)) 
+         IMPLIES  FrS(nth(Output,n))= FrS(nth(Input,n))+t)
+       &  (SrF(nth(Output, n)) =  timeout(d)) 
+       &  Offtimert(next(Input), next(Output))(t)(d)
+
+reset:[Data->bool]
+Rsttimert(Input, Output)(t:Time)(d:Data): Inductive bool =
+      FORALL(n:nat): (SrF(str_nth(n,Input)) = reset(d)  
+       OR FrS(str_nth(n,Input))+t < FrS(str_nth(n,next(Input))))
+       & ( (SrF(nth(next(Input),n))= reset(d)) 
+        IMPLIES (Rsttimert(next(Input), Output)(t)(d)))
+       & ( (NOT SrF(nth(next(Input),n)) = reset(d))
+        IMPLIES  FrS(nth(Output,n))= FrS(nth(Input,n))+t)
+       &  (SrF(nth(Output, n)) =  timeout(d))
+       &  Rsttimert(next(Input), next(Output))(t)(d)
+
+expire:[Data->bool]
+Exptimert(Input, Output)(t:Time)(d:Data): Inductive bool =
+      FORALL (n:nat): SrF(str_nth(n,Input)) = expire(d)  
+       OR FrS(str_nth(n,Input))+t < FrS(str_nth(n,next(Input)))
+       & ( (SrF(nth(next(Input),n))= expire(d))
+        IMPLIES FrS(nth(Output,n)) = FrS(nth(next(Input),n)))
+       & (SrF(nth(Output,n))= timeout(d)) 
+       & (Exptimert(next(Input), next(Output))(t)(d))
+       & ( (NOT SrF(nth(next(Input),n)) = expire(d)) 
+        IMPLIES  FrS(nth(Output,n))= FrS(nth(Input,n))+t)
+       & SrF(nth(Output, n)) =  timeout(d) 
+       & Exptimert(next(Input), next(Output))(t)(d)
+
+
+eqtltt: LEMMA (FORALL(A,B:TD,t:Time,n:nat): Tltt(A,B)(t) 
+               => FrS(str_nth(n,A))+t < FrS(str_nth(n,B)))
+
+eqteqt: LEMMA (FORALL(A,B:TD,t:Time,n:nat): Teqt(A,B)(t) 
+               => FrS(str_nth(n,A))+t = FrS(str_nth(n,B)))
+
+teqttltt: LEMMA (FORALL(A,B,C:TD, t:Time): Teqt(A,B)(t) & Tle(B, C) 
+               => Tltt(A, C)(t))
+
+eq_transfer: LEMMA (FORALL(A,B,C:TD, t:Time): Teq(A,B) & Teqt(B,C)(t) 
+	       => Teqt(A,C)(t))
+
+eq_tran: LEMMA (FORALL (A,B,C:TD,t:Time): Teqt(A,B)(t) & Teqt(B,C)(t) 
+               => Teqt(A, C)(t))
+
+leq_tra: LEMMA (FORALL (A,B,C:TD,t:Time): Tltt(A,B)(t) & Tltt(B,C)(t) 
+               => Tltt(A, C)(t))
+
+tg_tran: LEMMA (FORALL (A,B,C:TD,t:Time): Tgtt(A,B)(t) & Tgtt(B,C)(t) 
+                => Tgtt(A, C)(t))
+
+merge_transfer: LEMMA (FORALL(A,B,C,D,E,F:TD, t:Time,n:nat): Merge(A,B,C)(n) & 
+   Teqt(A, D)(t) & Teqt(B, E)(t) & Merge(D, E, F)(n) => Teqt(C, F)(t))
+
+LB_fifo1: THEOREM (FORALL(A,B,C,D,E:TD, t:Time,d:Data):
+Timert(A,C)(t)(d) & Fifo1(A,D) & SyncD(D,E) & Fifo1(C,E)
+  & Sync(D,B) => Deq(A,B) & Tltt(A,B)(t))
+
+timed_fifo: THEOREM (FORALL (A,B,C,D,E:TD, t:Time,d:Data):
+Fifo1(A,D) & Fifo1(D,E) & Sync(E,B) & SyncD(C,E) &  
+Teqt(A,C)(t) => Teqt(A,B)(t) & Tle(B,next(next(A))))
+
+timed_fifon1: THEOREM (FORALL (A,B,C,D,E:TD, t:Time,d:Data, n:nat):
+Fifon(A,E)(n+1) & Sync(E,B) & SyncD(C,E) & 
+Ttimern(A,C)(t)(d)(n+1) => Teqtn(A,B)(t)(n+1) & Deq(A,B)
+ & Tlen(B,next(A))(n+1))
+
+expire_fifo: THEOREM (FORALL(A,B,C,D,E,F,G,H:TD, t:Time,d:Data, 
+ n:nat):
+Sync(A,C) & Sync(C,F) & Fifo1(C,D) & Timert(F,G)(t)(d) &
+Lossysync(G,H)(n) & SyncD(D,H) & Lossysync(D,E)(n) & Sync(E,H) 
+& Sync(E,B) => Teqt(A,B)(t) & Tgt(B,A))
+
+nt_connector: THEOREM (FORALL (A,B,C,D,E,F,G,I,C1,D1:TD, t:Time,d:Data,n:nat): 
+   Sync(A,G) & Lossysync(G,E)(n) & Lossysync(G,F)(n) & Sync(E,I) &
+   Sync(F,I) & SyncD(G,I) & Merge(E,F,I)(n) & Sync(E,C) & Sync(F,D) &
+   Timert(C,C1)(t)(d) & Timert(D,D1)(t)(d) & Merge(C1,D1,B)(n) => Teqt(A,B)(t))
+
+End treo
+

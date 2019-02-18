@@ -1,0 +1,150 @@
+reou: THEORY 
+BEGIN 
+
+Time: Type =posreal
+Data: TYPE+
+
+TD: TYPE = [# T: sequence[Time], 
+              D: sequence[Data] #]
+
+Input, T1, T2, TD, Output: VAR TD
+
+<: (strict_order?[sequence[Time]])
+>: (strict_order?[sequence[Time]]) = 
+     LAMBDA (s1, s2: sequence[Time]): s2 < s1
+
+Teq(Input,Output): bool= T(Input) = T(Output)
+Tle(Input,Output): bool = T(Input) < T(Output)
+Tgt(Input, Output): bool = T(Input) > T(Output)
+Tneq(Input,Output): bool = T(Input) /= T(Output)  
+Deq(Input, Output): bool= D(Input) = D(Output);
+
+A: TYPE= Time 
+B: TYPE =Data
+T:TYPE
+
+pair: TYPE = [A,B]
+ArB:[pair -> A]; 
+BrA:[pair -> B]; 
+e?(T1)(e:Data): bool = FORALL(a:Time,e:Data): BrA(a,e)=e
+FrS(T1):bool =  FORALL (a:Time, b:Data): ArB(a,b)=a
+SrF(T1):bool =  FORALL (a:Time, b:Data): BrA(a,b)=b
+
+seq: var sequence[T];
+i, n: var nat;
+suffix(seq, n): sequence[T]  = (LAMBDA i:seq(i+n))
+
+next(T1): TD = T1 WITH [T:=(suffix(T1`T, 1)), 
+                        D:=(suffix(T1`D, 1))]
+
+nth(T1,n): TD=  T1 WITH [T:= (suffix(T1`T, n)), 
+                         D:= (suffix(T1`D, n))];
+Input1, Input2: VAR TD
+pat: VAR setof[Data];
+member(pat): bool = EXISTS (DI: Data): pat(DI) 
+
+Sync(Input, Output): bool = Teq(Input, Output) & 
+	     	            Deq(Input, Output)
+
+SyncD(Input1, Input2): bool = Teq(Input1, Input2)
+
+Filter(Input, Output)(pat): INDUCTIVE bool= FORALL(n:nat):
+	         SrF(nth(Input,n)) = member(pat) IMPLIES 
+                  Teq(Input, Output) & Deq(Input, Output)
+                   & Filter(next(Input), next(Output))(pat)
+                  AND (SrF(nth(Input,n)) /= member(pat) IMPLIES 
+                             Filter(next(Input), Output)(pat))
+
+Producer(Input, Output)(pat): bool = 
+                        SrF(nth(Input, 0))= member(pat) & 
+			      	   Teq(Input, Output)
+
+Fifo1(Input, Output): bool = Tle(Input, Output) & 
+	     	      	     Tle(Output, next(Input)) &
+			     Deq(Input, Output)
+
+Fifo1e(Input, Output)(e:Data)(n:nat): bool = Tgt(Input, Output) & 
+                   Tle(Input,next(Output))  & e?(nth(Output,n))(e)
+			     & Deq(Input, (next(Output)))
+
+Fifon(Input, Output: TD)(n:posnat): RECURSIVE bool = IF n=1 Then 
+                    Fifo1(Input, Output) ELSE 
+                 EXISTS(s3:TD): Fifon(Input, s3)(n-1) 
+               AND Fifo1(s3, Output) ENDIF MEASURE n
+
+Lossysync(Input, Output)(n:nat): INDUCTIVE bool = 
+                   ( nth(Output,n)= nth(Input,n) 
+		 & Lossysync(next(Input), next(Output))(n) 
+	         OR Lossysync(next(Input), Output)(n))
+
+ASD(Input, Output)(n:nat): INDUCTIVE bool=
+	   	 (NOT FrS(nth(Input,n))) =  FrS(nth(Output, n))
+	     & FrS(nth(Input,n)) < FrS(nth(Output, n))
+	     & ASD((next(Input), Output))(n)
+	     & FrS(nth(Input,n)) > FrS(nth(Output, n))
+	     & ASD(Input, next(Output))(n)
+
+Join(Input,Output): bool = Input=Output
+
+s1, s2, s3, A, B, C, C1, C2, D, E, F,G: VAR TD;
+
+FT(A, B, C): bool= Sync(A,B) & Fifo1(B,C)
+
+Merge(s1,s2,s3)(n:nat): INDUCTIVE bool =
+( NOT (FrS(nth(s1,n))) = (FrS(nth(s2,n)))
+AND (((FrS(nth(s1,n)) < (FrS(nth(s2,n))))
+IMPLIES nth(s3,n)= nth(s1,n))
+& Merge(next(s1), s2, next(s3))(n))
+AND (((FrS(nth(s1,n)) > (FrS(nth(s2,n))))
+IMPLIES nth(s3,n)= nth(s2,n))
+& Merge(s1, next(s2), next(s3))(n)))
+
+trans_equal: LEMMA Teq(s1,s2) & Teq(s2,s3) => Teq(s1,s3)
+
+trans_equal2: LEMMA Teq(s1,s2) => Teq(next(s1), next(s2))
+
+trans_equal3: LEMMA Tle(s1,s2) & Tle(s2,s3) => Tle(s1,s3)
+
+trans_equal4: LEMMA Tgt(s1,s2) & Tgt(s2,s3) => Tgt(s1,s3)
+
+trans_equal5: LEMMA Deq(s1,s2) & Deq(s2,s3) => Deq(s1,s3)
+
+
+T1: THEOREM Sync(A,B) & Fifo1(B,C) => 
+          Tle(A,C) & Teq(A,B) &  Deq(A,C)
+
+fto: THEOREM Sync(A,B) & Join(B,C) & Sync(C,D) => Teq(A,D) & Deq(A,D)
+
+tcr: THEOREM Sync(A,B) & Join(B,C) & Join(B,E) &Sync(E,F) & Sync(C,D) 
+=> Teq(A,F) & Teq(A,D) & Teq(D,F) & Deq(A,F) & Deq(A,D)
+
+wcr: THEOREM Sync(A,B) & Join(B, C) & Join(B, E) & SyncD(E,F) AND 
+  Sync(C,D) => Teq(A,D) & Deq(A,D)
+
+ex52new: THEOREM  Sync(A,G) & Lossysync(G,D)(n) & 
+Lossysync(G,E)(n) & SyncD(G,F) & Sync(D,F) & Sync(E,F) & 
+Sync(D,B) & Sync(E,C) =>
+Teq(A,C) OR Teq(A,B) 
+
+sequencer(A, G):bool= FORALL(B,C,D,E,F:TD, e:Data, n:nat): 
+Fifo1e(A,B)(e)(n) & Sync(B,E) & Fifo1(B,C) &
+Sync(C,F) & Fifo1(C,D) & Sync(D, G) & Sync(D,A)
+
+seq: THEOREM sequencer(A,G) => Tle(G, next(next(E))) & Tle(E,F) & Tle(F,G) & Deq(E,F) & Deq(F,G)
+
+lemma7: LEMMA A=B => Sync(A,B)
+
+T2LI: Theorem SyncD(A, B) & Fifo1(A, C1) & Sync(B, C2) => Tle(C2, C1) & Tle(C1, next(C2))
+
+R3LI: Theorem FORALL (A,C,D:TD): 
+(EXISTS B: Fifo1(A,B) & Sync(B, C) & Sync(B, D)) =>
+ (EXISTS E: Sync(A, E) & Fifo1(E,C) & Fifo1(E,D))
+
+ordering: THEOREM Sync(A,C) & SyncD(A,B) & Fifo1(B,C) =>
+                 Teq(A,C) & Tle(B,C)
+
+gn: THEOREM FORALL (n:nat): Fifon(s1, s2)(n+1) => Tle(s1, s2) & Deq(s1,s2)
+
+g1: THEOREM Fifon(s1,s2)(1) = Fifo1(s1,s2)
+
+End reou

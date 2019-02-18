@@ -1,0 +1,39 @@
+inst grind
+expand typepred expand flatten split expand propax expand skeep assert
+skosimp expand assert
+skosimp expand expand assert
+skeep expand typepred expand flatten expand inst assert
+skeep expand typepred expand flatten expand inst assert
+skosimp expand assert
+skosimp expand expand expand expand expand expand flatten split assert propax assert
+skosimp expand expand expand expand assert flatten split assert assert
+skosimp expand expand expand expand assert flatten split assert assert assert assert assert
+skosimp expand expand expand expand expand assert flatten split assert assert
+induct skosimp expand expand expand expand expand expand expand flatten split assert assert skosimp inst expand expand expand expand expand expand expand expand flatten assert
+skosimp expand expand expand expand expand expand expand assert typepred expand expand expand flatten assert grind
+skosimp expand expand expand assert
+skosimp expand expand expand expand expand expand expand flatten assert typepred expand expand expand flatten inst? inst? assert grind
+skosimp skolem! inst? expand expand expand expand expand expand flatten assert
+skosimp assert expand expand expand expand expand expand expand assert flatten typepred expand expand expand assert
+induct skosimp assert expand expand flatten assert assert skosimp expand skosimp inst assert expand flatten assert expand assert hide-all-but expand typepred expand flatten expand inst assert
+skosimp expand propax
+skosimp expand expand inst?
+skosimp expand expand inst?
+skosimp expand expand expand skosimp expand inst? assert typepred expand flatten expand assert grind
+skosimp expand expand expand expand expand expand propax
+skosimp expand skosimp expand expand expand expand propax
+skosimp expand skosimp expand propax
+skosimp expand skosimp typepred expand assert
+skosimp expand expand expand expand inst? skosimp expand propax
+skosimp expand expand expand expand expand expand expand flatten split inst assert assert expand skosimp grind
+skosimp expand expand expand expand expand expand expand assert flatten split skosimp expand expand expand propax expand assert expand expand expand propax
+induct skosimp expand expand expand expand expand expand expand assert grind skosimp expand expand skosimp inst? assert skosimp grind
+induct skosimp expand expand expand expand expand expand expand expand assert split skosimp inst? skosimp assert assert inst? skosimp assert skosimp expand assert expand assert expand expand skosimp assert split skosimp typepred inst? assert grind assert typepred expand flatten expand assert grind
+induct skosimp expand expand expand expand flatten assert split expand expand expand expand assert skosimp assert expand grind expand skosimp assert grind skosimp expand inst? inst? inst? inst? inst? skosimp assert split typepred assert grind assert grind assert grind assert grind grind
+expand inst skosimp expand case-replace lemma expand lemma expand assert lemma inst expand expand inst?
+lemma inst expand  expand assert inst?
+lemma inst expand  expand assert inst?
+induct skosimp expand expand expand expand expand expand expand expand assert flatten hide hide split typepred expand assert flatten expand expand flatten grind assert skosimp inst? inst? inst? inst? inst? assert expand expand expand expand expand expand expand assert flatten hide hide split typepred expand assert flatten expand expand flatten grind expand assert
+skosimp inst? typepred assert typepred assert prop assert inst? grind assert grind
+skosimp inst? typepred assert typepred assert prop assert inst? grind assert grind grind assert
+skosimp inst use skolem! use skolem! flatten split skolem! skosimp assert grind grind

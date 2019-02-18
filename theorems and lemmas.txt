@@ -1,0 +1,9 @@
+Theorem 1. T1. Untimed Reo. skosimp expand expand expand expand expand expand flatten split assert propax assert
+Theorem 2. LB_Fifo1. Timed Reo. skosimp expand expand expand expand expand expand expand expand flatten split inst assert assert expand skosimp grind
+Theorem 3. Expire_fifo: Timed Reo. induct skosimp expand expand expand expand expand expand expand expand assert split skosimp inst? skosimp assert assert inst skosimp assert skosimp inst? expand assert expand expand skosimp assert split skosimp typepred inst? assert grind assert typepred expand flatten expand assert grind
+Theorem 4. nt_connector: Timed Reo. induct skosimp expand expand expand expand flatten assert split expand expand expand expand assert skosimp assert expand grind expand  skosimp assert grind skosimp expand inst? inst? inst? inst? inst? skosimp assert split inst? typepred assert grind assert grind assert grind assert grind grind
+Theorem 5. prob. Probabilistic Reo. induct skosimp expand expand expand expand expand expand expand expand assert flatten hide hide split typepred expand assert flatten expand expand flatten grind assert skosimp inst? inst? inst? inst? inst? assert expand expand expand expand expand expand expand assert flatten hide split typepred expand assert flatten expand expand flatten grind expand assert
+Theorem 6. Refinement. Probabilistic Reo. skolem* flatten skolem! inst? flatten split propax propax propax propax
+Lemma 1: Probabilistic Reo. skosimp* inst? typepred assert typepred assert prop assert inst? grind assert grind 
+Lemma 2: Probabilistic Reo. skosimp* inst? typepred assert typepred assert prop assert inst? grind assert grind assert
+Theorem 7. Equivalence. Probabilistic Reo. skosimp* inst use skolem! use skolem! flatten split skolem! skosimp assert grind grind grind

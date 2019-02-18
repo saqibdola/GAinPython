@@ -1,0 +1,1770 @@
+
+%% PVS Version 6.0 - International Allegro CL Enterprise Edition 9.0 [Linux (x86)] (Jan 14, 2013 3:16)
+%% 9.0 [Linux (x86)] (Jan 14, 2013 3:16)
+$$$reout.pvs
+reou: THEORY 
+BEGIN 
+
+Time: Type =posreal
+Data: TYPE+
+
+TD: TYPE = [# T: sequence[Time], 
+              D: sequence[Data] #]
+
+Input, T1, T2, TD, Output: VAR TD
+
+<: (strict_order?[sequence[Time]])
+>: (strict_order?[sequence[Time]]) = 
+     LAMBDA (s1, s2: sequence[Time]): s2 < s1
+
+Teq(Input,Output): bool= T(Input) = T(Output)
+Tle(Input,Output): bool = T(Input) < T(Output)
+Tgt(Input, Output): bool = T(Input) > T(Output)
+Tneq(Input,Output): bool = T(Input) /= T(Output)  
+Deq(Input, Output): bool= D(Input) = D(Output);
+
+A: TYPE= Time 
+B: TYPE =Data
+T:TYPE
+
+pair: TYPE = [A,B]
+ArB:[pair -> A]; 
+BrA:[pair -> B]; 
+e?(T1)(e:Data): bool = FORALL(a:Time,e:Data): BrA(a,e)=e
+FrS(T1):bool =  FORALL (a:Time, b:Data): ArB(a,b)=a
+SrF(T1):bool =  FORALL (a:Time, b:Data): BrA(a,b)=b
+
+seq: var sequence[T];
+i, n: var nat;
+suffix(seq, n): sequence[T]  = (LAMBDA i:seq(i+n))
+
+next(T1): TD = T1 WITH [T:=(suffix(T1`T, 1)), 
+                        D:=(suffix(T1`D, 1))]
+
+nth(T1,n): TD=  T1 WITH [T:= (suffix(T1`T, n)), 
+                         D:= (suffix(T1`D, n))];
+Input1, Input2: VAR TD
+pat: VAR setof[Data];
+member(pat): bool = EXISTS (DI: Data): pat(DI) 
+
+Sync(Input, Output): bool = Teq(Input, Output) & 
+	     	            Deq(Input, Output)
+
+SyncD(Input1, Input2): bool = Teq(Input1, Input2)
+
+Filter(Input, Output)(pat): INDUCTIVE bool= FORALL(n:nat):
+	         SrF(nth(Input,n)) = member(pat) IMPLIES 
+                  Teq(Input, Output) & Deq(Input, Output)
+                   & Filter(next(Input), next(Output))(pat)
+                  AND (SrF(nth(Input,n)) /= member(pat) IMPLIES 
+                             Filter(next(Input), Output)(pat))
+
+Producer(Input, Output)(pat): bool = 
+                        SrF(nth(Input, 0))= member(pat) & 
+			      	   Teq(Input, Output)
+
+Fifo1(Input, Output): bool = Tle(Input, Output) & 
+	     	      	     Tle(Output, next(Input)) &
+			     Deq(Input, Output)
+
+Fifo1e(Input, Output)(e:Data)(n:nat): bool = Tgt(Input, Output) & 
+                   Tle(Input,next(Output))  & e?(nth(Output,n))(e)
+			     & Deq(Input, (next(Output)))
+
+Fifon(Input, Output: TD)(n:posnat): RECURSIVE bool = IF n=1 Then 
+                    Fifo1(Input, Output) ELSE 
+                 EXISTS(s3:TD): Fifon(Input, s3)(n-1) 
+               AND Fifo1(s3, Output) ENDIF MEASURE n
+
+Lossysync(Input, Output)(n:nat): INDUCTIVE bool = 
+                   ( nth(Output,n)= nth(Input,n) 
+		 & Lossysync(next(Input), next(Output))(n) 
+	         OR Lossysync(next(Input), Output)(n))
+
+ASD(Input, Output)(n:nat): INDUCTIVE bool=
+	   	 (NOT FrS(nth(Input,n))) =  FrS(nth(Output, n))
+	     & FrS(nth(Input,n)) < FrS(nth(Output, n))
+	     & ASD((next(Input), Output))(n)
+	     & FrS(nth(Input,n)) > FrS(nth(Output, n))
+	     & ASD(Input, next(Output))(n)
+
+Join(Input,Output): bool = Input=Output
+
+s1, s2, s3, A, B, C, C1, C2, D, E, F,G: VAR TD;
+
+FT(A, B, C): bool= Sync(A,B) & Fifo1(B,C)
+
+Merge(s1,s2,s3)(n:nat): INDUCTIVE bool =
+( NOT (FrS(nth(s1,n))) = (FrS(nth(s2,n)))
+AND (((FrS(nth(s1,n)) < (FrS(nth(s2,n))))
+IMPLIES nth(s3,n)= nth(s1,n))
+& Merge(next(s1), s2, next(s3))(n))
+AND (((FrS(nth(s1,n)) > (FrS(nth(s2,n))))
+IMPLIES nth(s3,n)= nth(s2,n))
+& Merge(s1, next(s2), next(s3))(n)))
+
+trans_equal: LEMMA Teq(s1,s2) & Teq(s2,s3) => Teq(s1,s3)
+
+trans_equal2: LEMMA Teq(s1,s2) => Teq(next(s1), next(s2))
+
+trans_equal3: LEMMA Tle(s1,s2) & Tle(s2,s3) => Tle(s1,s3)
+
+trans_equal4: LEMMA Tgt(s1,s2) & Tgt(s2,s3) => Tgt(s1,s3)
+
+trans_equal5: LEMMA Deq(s1,s2) & Deq(s2,s3) => Deq(s1,s3)
+
+
+T1: THEOREM Sync(A,B) & Fifo1(B,C) => 
+          Tle(A,C) & Teq(A,B) &  Deq(A,C)
+
+fto: THEOREM Sync(A,B) & Join(B,C) & Sync(C,D) => Teq(A,D) & Deq(A,D)
+
+tcr: THEOREM Sync(A,B) & Join(B,C) & Join(B,E) &Sync(E,F) & Sync(C,D) 
+=> Teq(A,F) & Teq(A,D) & Teq(D,F) & Deq(A,F) & Deq(A,D)
+
+wcr: THEOREM Sync(A,B) & Join(B, C) & Join(B, E) & SyncD(E,F) AND 
+  Sync(C,D) => Teq(A,D) & Deq(A,D)
+
+ex52new: THEOREM  Sync(A,G) & Lossysync(G,D)(n) & 
+Lossysync(G,E)(n) & SyncD(G,F) & Sync(D,F) & Sync(E,F) & 
+Sync(D,B) & Sync(E,C) =>
+Teq(A,C) OR Teq(A,B) 
+
+sequencer(A, G):bool= FORALL(B,C,D,E,F:TD, e:Data, n:nat): 
+Fifo1e(A,B)(e)(n) & Sync(B,E) & Fifo1(B,C) &
+Sync(C,F) & Fifo1(C,D) & Sync(D, G) & Sync(D,A)
+
+seq: THEOREM sequencer(A,G) => Tle(G, next(next(E))) & Tle(E,F) & Tle(F,G) & Deq(E,F) & Deq(F,G)
+
+lemma7: LEMMA A=B => Sync(A,B)
+
+T2LI: Theorem SyncD(A, B) & Fifo1(A, C1) & Sync(B, C2) => Tle(C2, C1) & Tle(C1, next(C2))
+
+R3LI: Theorem FORALL (A,C,D:TD): 
+(EXISTS B: Fifo1(A,B) & Sync(B, C) & Sync(B, D)) =>
+ (EXISTS E: Sync(A, E) & Fifo1(E,C) & Fifo1(E,D))
+
+ordering: THEOREM Sync(A,C) & SyncD(A,B) & Fifo1(B,C) =>
+                 Teq(A,C) & Tle(B,C)
+
+gn: THEOREM FORALL (n:nat): Fifon(s1, s2)(n+1) => Tle(s1, s2) & Deq(s1,s2)
+
+g1: THEOREM Fifon(s1,s2)(1) = Fifo1(s1,s2)
+
+End reou
+
+$$$reout.prf
+(reou
+ (lessp_TCC1 0
+  (lessp_TCC1-1 nil 3728620511
+   ("" (inst 1 "lambda (x, y: sequence[Time]): false")
+    (("" (grind) nil nil)) nil)
+   ((irreflexive? const-decl "bool" relations nil)
+    (transitive? const-decl "bool" relations nil)
+    (FALSE const-decl "bool" booleans nil)
+    (strict_order? const-decl "bool" orders nil)
+    (pred type-eq-decl nil defined_types nil)
+    (sequence type-eq-decl nil sequences nil)
+    (Time type-eq-decl nil reou nil) (> const-decl "bool" reals nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (>= const-decl "bool" reals nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number nonempty-type-decl nil numbers nil))
+   nil))
+ (greaterp_TCC1 0
+  (greaterp_TCC1-1 nil 3728620511
+   ("" (expand "strict_order?")
+    (("" (typepred "<")
+      (("" (expand "strict_order?")
+        (("" (flatten)
+          (("" (split)
+            (("1" (expand "irreflexive?") (("1" (propax) nil nil)) nil)
+             ("2" (expand "transitive?")
+              (("2" (skeep)
+                (("2" (inst -4 "z" "y" "x") (("2" (assert) nil nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((< const-decl "(strict_order?[sequence[Time]])" reou nil)
+    (pred type-eq-decl nil defined_types nil)
+    (sequence type-eq-decl nil sequences nil)
+    (Time type-eq-decl nil reou nil) (> const-decl "bool" reals nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (>= const-decl "bool" reals nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number nonempty-type-decl nil numbers nil)
+    (NOT const-decl "[bool -> bool]" booleans nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (transitive? const-decl "bool" relations nil)
+    (irreflexive? const-decl "bool" relations nil)
+    (strict_order? const-decl "bool" orders nil))
+   nil))
+ (Fifon_TCC1 0
+  (Fifon_TCC1-1 nil 3728620511 ("" (subtype-tcc) nil nil)
+   ((boolean nonempty-type-decl nil booleans nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (NOT const-decl "[bool -> bool]" booleans nil)
+    (number nonempty-type-decl nil numbers nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (> const-decl "bool" reals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (>= const-decl "bool" reals nil)
+    (nonneg_int nonempty-type-eq-decl nil integers nil)
+    (posnat nonempty-type-eq-decl nil integers nil)
+    (int_minus_int_is_int application-judgement "int" integers nil)
+    (real_gt_is_strict_total_order name-judgement
+     "(strict_total_order?[real])" real_props nil))
+   nil))
+ (Fifon_TCC2 0
+  (Fifon_TCC2-1 nil 3728620511 ("" (termination-tcc) nil nil) nil nil))
+ (trans_equal 0
+  (trans_equal-1 nil 3728620726
+   ("" (skosimp) (("" (expand "Teq") (("" (assert) nil nil)) nil)) nil)
+   ((Teq const-decl "bool" reou nil)) shostak))
+ (trans_equal2 0
+  (trans_equal2-1 nil 3728620822
+   ("" (skosimp)
+    (("" (expand "Teq")
+      (("" (expand "next") (("" (assert) nil nil)) nil)) nil))
+    nil)
+   ((Teq const-decl "bool" reou nil) (next const-decl "TD" reou nil))
+   shostak))
+ (trans_equal3 0
+  (trans_equal3-1 nil 3728620854
+   ("" (skeep)
+    (("" (expand "Tle")
+      (("" (typepred "<")
+        (("" (expand "strict_order?")
+          (("" (flatten)
+            (("" (expand "transitive?")
+              (("" (inst -2 "T(s1)" "T(s2)" "T(s3)")
+                (("" (assert) nil nil)) nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((Tle const-decl "bool" reou nil)
+    (transitive? const-decl "bool" relations nil)
+    (Data nonempty-type-decl nil reou nil)
+    (TD type-eq-decl nil reou nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (NOT const-decl "[bool -> bool]" booleans nil)
+    (number nonempty-type-decl nil numbers nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (>= const-decl "bool" reals nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (> const-decl "bool" reals nil) (Time type-eq-decl nil reou nil)
+    (sequence type-eq-decl nil sequences nil)
+    (pred type-eq-decl nil defined_types nil)
+    (strict_order? const-decl "bool" orders nil)
+    (< const-decl "(strict_order?[sequence[Time]])" reou nil))
+   shostak))
+ (trans_equal4 0
+  (trans_equal4-1 nil 3728620934
+   ("" (skeep)
+    (("" (expand "Tgt")
+      (("" (typepred ">")
+        (("" (expand "strict_order?")
+          (("" (flatten)
+            (("" (expand "transitive?")
+              (("" (inst -2 "T(s1)" "T(s2)" "T(s3)")
+                (("" (assert) nil nil)) nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((> const-decl "(strict_order?[sequence[Time]])" reou nil)
+    (strict_order? const-decl "bool" orders nil)
+    (pred type-eq-decl nil defined_types nil)
+    (sequence type-eq-decl nil sequences nil)
+    (Time type-eq-decl nil reou nil) (> const-decl "bool" reals nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (>= const-decl "bool" reals nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number nonempty-type-decl nil numbers nil)
+    (NOT const-decl "[bool -> bool]" booleans nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (Data nonempty-type-decl nil reou nil)
+    (TD type-eq-decl nil reou nil)
+    (transitive? const-decl "bool" relations nil)
+    (Tgt const-decl "bool" reou nil))
+   shostak))
+ (trans_equal5 0
+  (trans_equal5-1 nil 3728621027
+   ("" (skosimp) (("" (expand "Deq") (("" (assert) nil nil)) nil)) nil)
+   ((Deq const-decl "bool" reou nil)) shostak))
+ (trans_equal6 0
+  (trans_equal6-1 nil 3740702205
+   ("" (skosimp)
+    (("" (expand "Sync")
+      (("" (expand "Teq")
+        (("" (expand "Deq")
+          (("" (flatten)
+            (("" (split)
+              (("1" (assert) nil nil) ("2" (assert) nil nil)) nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((Teq const-decl "bool" reou nil) (Deq const-decl "bool" reou nil)
+    (Sync const-decl "bool" reou nil))
+   shostak))
+ (L6 0
+  (L6-1 nil 3740702402
+   ("" (skosimp)
+    (("" (expand "Fifo1")
+      (("" (expand "Tle")
+        (("" (expand "Deq")
+          (("" (expand "Tgt")
+            (("" (assert)
+              (("" (flatten)
+                (("" (typepred ">")
+                  (("" (expand "strict_order?")
+                    (("" (expand "irreflexive?")
+                      (("" (expand "transitive?")
+                        (("" (assert)
+                          (("" (grind) (("" (postpone) nil nil)) nil))
+                          nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   nil shostak))
+ (T1 0
+  (T1-1 nil 3728621090
+   ("" (skosimp)
+    (("" (expand "Sync")
+      (("" (expand "Fifo1")
+        (("" (expand "Teq")
+          (("" (expand "Deq")
+            (("" (expand "Tle")
+              (("" (expand "next")
+                (("" (flatten)
+                  (("" (split)
+                    (("1" (assert) nil nil) ("2" (propax) nil nil)
+                     ("3" (assert) nil nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((Sync const-decl "bool" reou nil) (Teq const-decl "bool" reou nil)
+    (Tle const-decl "bool" reou nil) (next const-decl "TD" reou nil)
+    (Deq const-decl "bool" reou nil)
+    (Fifo1 const-decl "bool" reou nil))
+   shostak))
+ (fto 0
+  (fto-1 nil 3728621188
+   ("" (skosimp)
+    (("" (expand "Sync")
+      (("" (expand "Join")
+        (("" (expand "Teq")
+          (("" (expand "Deq")
+            (("" (assert)
+              (("" (flatten)
+                (("" (split)
+                  (("1" (assert) nil nil) ("2" (assert) nil nil)) nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((Sync const-decl "bool" reou nil) (Teq const-decl "bool" reou nil)
+    (Deq const-decl "bool" reou nil) (Join const-decl "bool" reou nil))
+   shostak))
+ (tcr 0
+  (tcr-1 nil 3728621238
+   ("" (skosimp)
+    (("" (expand "Sync")
+      (("" (expand "Join")
+        (("" (expand "Teq")
+          (("" (expand "Deq")
+            (("" (assert)
+              (("" (flatten)
+                (("" (split)
+                  (("1" (assert) nil nil) ("2" (assert) nil nil)
+                   ("3" (assert) nil nil) ("4" (assert) nil nil)
+                   ("5" (assert) nil nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((Join const-decl "bool" reou nil) (Deq const-decl "bool" reou nil)
+    (Teq const-decl "bool" reou nil) (Sync const-decl "bool" reou nil))
+   shostak))
+ (wcr 0
+  (wcr-1 nil 3728621296
+   ("" (skosimp)
+    (("" (expand "Sync")
+      (("" (expand "Join")
+        (("" (expand "SyncD")
+          (("" (expand "Teq")
+            (("" (expand "Deq")
+              (("" (assert)
+                (("" (flatten)
+                  (("" (split)
+                    (("1" (assert) nil nil) ("2" (assert) nil nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((Join const-decl "bool" reou nil) (Teq const-decl "bool" reou nil)
+    (Deq const-decl "bool" reou nil) (SyncD const-decl "bool" reou nil)
+    (Sync const-decl "bool" reou nil))
+   shostak))
+ (ex52new 0
+  (ex52new-1 nil 3728621374
+   ("" (induct "n")
+    (("1" (skosimp)
+      (("1" (expand "Sync")
+        (("1" (expand "Lossysync")
+          (("1" (expand "SyncD")
+            (("1" (expand "next")
+              (("1" (expand "suffix")
+                (("1" (expand "Teq")
+                  (("1" (expand "Deq")
+                    (("1" (flatten)
+                      (("1" (split)
+                        (("1" (assert) nil nil) ("2" (assert) nil nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil)
+     ("2" (skosimp*)
+      (("2" (inst -1 "A!1" "B!1" "C!1" "D!1" "E!1" "F!1" "G!1")
+        (("2" (expand "Lossysync")
+          (("2" (expand "Sync")
+            (("2" (expand "SyncD")
+              (("2" (expand "next")
+                (("2" (expand "suffix")
+                  (("2" (expand "nth")
+                    (("2" (expand "Teq")
+                      (("2" (expand "Deq")
+                        (("2" (flatten) (("2" (assert) nil nil)) nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((posint_plus_nnint_is_posint application-judgement "posint"
+     integers nil)
+    (nth const-decl "T" sequences nil) (next const-decl "TD" reou nil)
+    (Deq const-decl "bool" reou nil)
+    (suffix const-decl "sequence" sequences nil)
+    (nnint_plus_posint_is_posint application-judgement "posint"
+     integers nil)
+    (nat_induction formula-decl nil naturalnumbers nil)
+    (Teq const-decl "bool" reou nil)
+    (OR const-decl "[bool, bool -> bool]" booleans nil)
+    (SyncD const-decl "bool" reou nil)
+    (Lossysync inductive-decl "bool" reou nil)
+    (Sync const-decl "bool" reou nil)
+    (AND const-decl "[bool, bool -> bool]" booleans nil)
+    (IMPLIES const-decl "[bool, bool -> bool]" booleans nil)
+    (TD type-eq-decl nil reou nil) (Time type-eq-decl nil reou nil)
+    (> const-decl "bool" reals nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (sequence type-eq-decl nil sequences nil)
+    (Data nonempty-type-decl nil reou nil)
+    (pred type-eq-decl nil defined_types nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (>= const-decl "bool" reals nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number nonempty-type-decl nil numbers nil))
+   shostak))
+ (seq 0
+  (seq-1 nil 3728621652
+   ("" (skosimp)
+    (("" (expand "sequencer")
+      (("" (expand "Tle")
+        (("" (expand "Deq")
+          (("" (expand "Fifo1e")
+            (("" (expand "next")
+              (("" (expand "Sync")
+                (("" (expand "suffix")
+                  (("" (assert)
+                    (("" (typepred "<")
+                      (("" (expand "strict_order?")
+                        (("" (expand "irreflexive?")
+                          (("" (expand "transitive?")
+                            (("" (flatten)
+                              ((""
+                                (assert)
+                                (("" (grind) nil nil))
+                                nil))
+                              nil))
+                            nil))
+                          nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((sequencer const-decl "bool" reou nil)
+    (Deq const-decl "bool" reou nil) (next const-decl "TD" reou nil)
+    (suffix const-decl "sequence" sequences nil)
+    (< const-decl "(strict_order?[sequence[Time]])" reou nil)
+    (strict_order? const-decl "bool" orders nil)
+    (pred type-eq-decl nil defined_types nil)
+    (sequence type-eq-decl nil sequences nil)
+    (Time type-eq-decl nil reou nil) (> const-decl "bool" reals nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (>= const-decl "bool" reals nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number nonempty-type-decl nil numbers nil)
+    (NOT const-decl "[bool -> bool]" booleans nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (irreflexive? const-decl "bool" relations nil)
+    (TD type-eq-decl nil reou nil)
+    (Data nonempty-type-decl nil reou nil)
+    (Fifo1 const-decl "bool" reou nil) (Teq const-decl "bool" reou nil)
+    (e? const-decl "bool" reou nil) (nth const-decl "TD" reou nil)
+    (Tgt const-decl "bool" reou nil)
+    (> const-decl "(strict_order?[sequence[Time]])" reou nil)
+    (transitive? const-decl "bool" relations nil)
+    (Sync const-decl "bool" reou nil)
+    (Fifo1e const-decl "bool" reou nil)
+    (Tle const-decl "bool" reou nil))
+   shostak))
+ (lemma7 0
+  (lemma7-1 nil 3728621750
+   ("" (skosimp)
+    (("" (expand "Sync")
+      (("" (expand "Teq")
+        (("" (expand "Deq") (("" (assert) nil nil)) nil)) nil))
+      nil))
+    nil)
+   ((Sync const-decl "bool" reou nil) (Deq const-decl "bool" reou nil)
+    (Teq const-decl "bool" reou nil))
+   shostak))
+ (T2LI 0
+  (T2LI-1 nil 3728621769
+   ("" (skosimp)
+    (("" (expand "SyncD")
+      (("" (expand "Teq")
+        (("" (expand "Fifo1")
+          (("" (expand "Tle")
+            (("" (expand "next")
+              (("" (expand "Sync")
+                (("" (expand "Deq")
+                  (("" (flatten)
+                    (("" (assert)
+                      (("" (typepred "<")
+                        (("" (expand "strict_order?")
+                          (("" (expand "irreflexive?")
+                            (("" (expand "transitive?")
+                              ((""
+                                (flatten)
+                                ((""
+                                  (inst?)
+                                  ((""
+                                    (inst?)
+                                    ((""
+                                      (assert)
+                                      (("" (grind) nil nil))
+                                      nil))
+                                    nil))
+                                  nil))
+                                nil))
+                              nil))
+                            nil))
+                          nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((SyncD const-decl "bool" reou nil)
+    (Fifo1 const-decl "bool" reou nil) (next const-decl "TD" reou nil)
+    (Deq const-decl "bool" reou nil)
+    (transitive? const-decl "bool" relations nil)
+    (TD type-eq-decl nil reou nil)
+    (Data nonempty-type-decl nil reou nil)
+    (suffix const-decl "sequence" sequences nil)
+    (irreflexive? const-decl "bool" relations nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (NOT const-decl "[bool -> bool]" booleans nil)
+    (number nonempty-type-decl nil numbers nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (>= const-decl "bool" reals nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (> const-decl "bool" reals nil) (Time type-eq-decl nil reou nil)
+    (sequence type-eq-decl nil sequences nil)
+    (pred type-eq-decl nil defined_types nil)
+    (strict_order? const-decl "bool" orders nil)
+    (< const-decl "(strict_order?[sequence[Time]])" reou nil)
+    (Sync const-decl "bool" reou nil) (Tle const-decl "bool" reou nil)
+    (Teq const-decl "bool" reou nil))
+   shostak))
+ (R3LI 0
+  (R3LI-1 nil 3728621853
+   ("" (skosimp)
+    (("" (skolem!)
+      (("" (inst?)
+        (("" (expand "Fifo1")
+          (("" (expand "Sync")
+            (("" (expand "Tle")
+              (("" (expand "next")
+                (("" (expand "Teq")
+                  (("" (expand "Deq")
+                    (("" (flatten) (("" (assert) nil nil)) nil)) nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((Fifo1 const-decl "bool" reou nil) (Tle const-decl "bool" reou nil)
+    (Teq const-decl "bool" reou nil) (Deq const-decl "bool" reou nil)
+    (next const-decl "TD" reou nil) (Sync const-decl "bool" reou nil)
+    (TD type-eq-decl nil reou nil) (Time type-eq-decl nil reou nil)
+    (> const-decl "bool" reals nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (>= const-decl "bool" reals nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number nonempty-type-decl nil numbers nil)
+    (sequence type-eq-decl nil sequences nil)
+    (Data nonempty-type-decl nil reou nil))
+   shostak))
+ (ordering 0
+           (ordering-1 nil 3728621971
+            ("" (skosimp)
+             (("" (assert)
+               (("" (expand "Sync")
+                 (("" (expand "SyncD")
+                   (("" (expand "Fifo1")
+                     (("" (expand "next")
+                       (("" (expand "suffix")
+                         (("" (expand "Teq")
+                           (("" (expand "Deq")
+                             (("" (expand "Tle")
+                               ((""
+                                 (assert)
+                                 ((""
+                                   (flatten)
+                                   ((""
+                                     (typepred "<")
+                                     ((""
+                                       (expand "strict_order?")
+                                       ((""
+                                         (expand "transitive?")
+                                         ((""
+                                           (expand "irreflexive?")
+                                           (("" (assert) nil nil))
+                                           nil))
+                                         nil))
+                                       nil))
+                                     nil))
+                                   nil))
+                                 nil))
+                               nil))
+                             nil))
+                           nil))
+                         nil))
+                       nil))
+                     nil))
+                   nil))
+                 nil))
+               nil))
+             nil)
+            ((SyncD const-decl "bool" reou nil)
+             (next const-decl "TD" reou nil)
+             (Teq const-decl "bool" reou nil)
+             (Tle const-decl "bool" reou nil)
+             (irreflexive? const-decl "bool" relations nil)
+             (transitive? const-decl "bool" relations nil)
+             (boolean nonempty-type-decl nil booleans nil)
+             (bool nonempty-type-eq-decl nil booleans nil)
+             (NOT const-decl "[bool -> bool]" booleans nil)
+             (number nonempty-type-decl nil numbers nil)
+             (number_field_pred const-decl "[number -> boolean]"
+              number_fields nil)
+             (number_field nonempty-type-from-decl nil number_fields
+              nil)
+             (real_pred const-decl "[number_field -> boolean]" reals
+                        nil)
+             (real nonempty-type-from-decl nil reals nil)
+             (rational_pred const-decl "[real -> boolean]" rationals
+                            nil)
+             (rational nonempty-type-from-decl nil rationals nil)
+             (integer_pred const-decl "[rational -> boolean]" integers
+                           nil)
+             (int nonempty-type-eq-decl nil integers nil)
+             (>= const-decl "bool" reals nil)
+             (nat nonempty-type-eq-decl nil naturalnumbers nil)
+             (nonneg_real nonempty-type-eq-decl nil real_types nil)
+             (> const-decl "bool" reals nil)
+             (Time type-eq-decl nil reou nil)
+             (sequence type-eq-decl nil sequences nil)
+             (pred type-eq-decl nil defined_types nil)
+             (strict_order? const-decl "bool" orders nil)
+             (< const-decl "(strict_order?[sequence[Time]])" reou nil)
+             (Deq const-decl "bool" reou nil)
+             (suffix const-decl "sequence" sequences nil)
+             (Fifo1 const-decl "bool" reou nil)
+             (Sync const-decl "bool" reou nil))
+            shostak))
+ (gn 0
+  (gn-1 nil 3728622035
+   ("" (induct "n")
+    (("1" (skosimp)
+      (("1" (assert)
+        (("1" (expand "Fifon")
+          (("1" (expand "Fifo1")
+            (("1" (flatten) (("1" (assert) nil nil)) nil)) nil))
+          nil))
+        nil))
+      nil)
+     ("2" (assert)
+      (("2" (skosimp*)
+        (("2" (expand Fifon -2)
+          (("2" (skosimp)
+            (("2" (inst - s1!1 s3!1)
+              (("2" (assert)
+                (("2" (expand "Fifo1")
+                  (("2" (flatten)
+                    (("2" (assert)
+                      (("2" (expand "Deq")
+                        (("2" (assert)
+                          (("2" (hide-all-but (-1 -4 1))
+                            (("2" (expand "Tle")
+                              (("2"
+                                (typepred "<")
+                                (("2"
+                                  (expand "strict_order?")
+                                  (("2"
+                                    (flatten)
+                                    (("2"
+                                      (expand "transitive?")
+                                      (("2"
+                                        (inst
+                                         -
+                                         "T(s1!1)"
+                                         "T(s3!1)"
+                                         "T(s2!1)")
+                                        (("2" (assert) nil nil))
+                                        nil))
+                                      nil))
+                                    nil))
+                                  nil))
+                                nil))
+                              nil))
+                            nil))
+                          nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((transitive? const-decl "bool" relations nil)
+    (< const-decl "(strict_order?[sequence[Time]])" reou nil)
+    (strict_order? const-decl "bool" orders nil)
+    (NOT const-decl "[bool -> bool]" booleans nil)
+    (Fifo1 const-decl "bool" reou nil)
+    (even_plus_odd_is_odd application-judgement "odd_int" integers nil)
+    (posint_plus_nnint_is_posint application-judgement "posint"
+     integers nil)
+    (nat_induction formula-decl nil naturalnumbers nil)
+    (Deq const-decl "bool" reou nil) (Tle const-decl "bool" reou nil)
+    (AND const-decl "[bool, bool -> bool]" booleans nil)
+    (+ const-decl "[numfield, numfield -> numfield]" number_fields nil)
+    (numfield nonempty-type-eq-decl nil number_fields nil)
+    (Fifon def-decl "bool" reou nil)
+    (posnat nonempty-type-eq-decl nil integers nil)
+    (nonneg_int nonempty-type-eq-decl nil integers nil)
+    (IMPLIES const-decl "[bool, bool -> bool]" booleans nil)
+    (TD type-eq-decl nil reou nil) (Time type-eq-decl nil reou nil)
+    (> const-decl "bool" reals nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (sequence type-eq-decl nil sequences nil)
+    (Data nonempty-type-decl nil reou nil)
+    (pred type-eq-decl nil defined_types nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (>= const-decl "bool" reals nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number nonempty-type-decl nil numbers nil)
+    (nnint_plus_posint_is_posint application-judgement "posint"
+     integers nil))
+   shostak))
+ (g1 0
+  (g1-1 nil 3728622240
+   ("" (skosimp) (("" (expand "Fifon") (("" (propax) nil nil)) nil))
+    nil)
+   ((Fifon def-decl "bool" reou nil)) shostak)))
+
+
+$$$reot.pvs
+treo: THEORY 
+BEGIN 
+
+Importing reou
+
+Input, T1, T2, TD1, Output: VAR TD
+
+n: var nat;
+
+str_nth1(n,TD1): RECURSIVE TD = 
+	        	IF n=0 THEN TD1 
+	        	ELSE str_nth1(n-1, next(TD1))
+	        	ENDIF 
+		MEASURE n
+str_nth(n, TD1): TD= nth(str_nth1(n,TD1), n)
+
+Inc_UT: AXIOM FORALL (T1, n): FrS(str_nth(n,T1)) < FrS(str_nth(n, next(T1)))
+Inc_T: AXIOM FORALL (T1:TD)(n:nat)(t:Time): FrS(str_nth(n,T1))+ t < FrS(str_nth(n, next(T1)))
+
+Teqt(T1,T2)(t:Time): bool = FORALL (n:nat): FrS(str_nth(n,T1)) + t = FrS(str_nth(n,T2))
+Tltt(T1,T2)(t:Time): bool = FORALL(n:nat): FrS(str_nth(n,T1)) + t < FrS(str_nth(n,T2))
+Tgtt(T1,T2)(t:Time): bool = FORALL (n:nat): FrS(str_nth(n,T1)) + t > FrS(str_nth(n,T2))
+
+
+Teqtn(T1, T2)(t:Time)(n:posnat): RECURSIVE bool= 
+                 IF n=1 THEN Teqt(T1,T2)(t) 
+                 ELSE EXISTS(T3:TD): Teqtn(T1,T3)(t)(n-1) & 
+                                     Teqt(T3,T2)(t)
+                 ENDIF MEASURE n
+
+Tlen(T1, T2)(n:posnat): RECURSIVE bool= 
+                IF n=1 THEN Tle(T1,T2)  
+                ELSE EXISTS(T3:TD): Tlen(T1,T3)(n-1) & 
+                                    Tle(T3,T2)
+                ENDIF Measure n
+
+s1,s2,s3: VAr TD
+
+timeout:[Data->bool]
+Timert(Input, Output)(t:Time)(d:Data): bool = FORALL (n:nat): 
+FrS(str_nth(n,Input)) + t < FrS(str_nth(n,(next(Input))))
+ & Teqt(Input, Output)(t) & SrF(str_nth(n, Output)) = timeout(d)
+
+Ttimern(T1, T2)(t:Time)(d:Data)(n:posnat): RECURSIVE bool= IF n=1 THEN 
+              Timert(T1,T2)(t)(d) ELSE Exists(T3:TD): Ttimern(T1,T3)(t)(d)(n-1) & Timert(T2,T3)(t)(d)
+ENDif MEASURE n
+
+off:[Data->bool]
+Offtimert(Input, Output)(t:Time)(d:Data): INDUCTIVE bool = 
+      FORALL(n:nat): SrF(str_nth(n,Input)) = off(d) OR 
+       FrS(str_nth(n,Input))+ t < FrS(str_nth(n,next(Input)))
+       & ( (SrF(nth(next(Input),n))= off(d)) 
+         IMPLIES (Offtimert(next(next(Input)), Output)(t)(d)))
+       & ( (NOT SrF(nth(next(Input),n)) = off(d)) 
+         IMPLIES  FrS(nth(Output,n))= FrS(nth(Input,n))+t)
+       &  (SrF(nth(Output, n)) =  timeout(d)) 
+       &  Offtimert(next(Input), next(Output))(t)(d)
+
+reset:[Data->bool]
+Rsttimert(Input, Output)(t:Time)(d:Data): Inductive bool =
+      FORALL(n:nat): (SrF(str_nth(n,Input)) = reset(d)  
+       OR FrS(str_nth(n,Input))+t < FrS(str_nth(n,next(Input))))
+       & ( (SrF(nth(next(Input),n))= reset(d)) 
+        IMPLIES (Rsttimert(next(Input), Output)(t)(d)))
+       & ( (NOT SrF(nth(next(Input),n)) = reset(d))
+        IMPLIES  FrS(nth(Output,n))= FrS(nth(Input,n))+t)
+       &  (SrF(nth(Output, n)) =  timeout(d))
+       &  Rsttimert(next(Input), next(Output))(t)(d)
+
+expire:[Data->bool]
+Exptimert(Input, Output)(t:Time)(d:Data): Inductive bool =
+      FORALL (n:nat): SrF(str_nth(n,Input)) = expire(d)  
+       OR FrS(str_nth(n,Input))+t < FrS(str_nth(n,next(Input)))
+       & ( (SrF(nth(next(Input),n))= expire(d))
+        IMPLIES FrS(nth(Output,n)) = FrS(nth(next(Input),n)))
+       & (SrF(nth(Output,n))= timeout(d)) 
+       & (Exptimert(next(Input), next(Output))(t)(d))
+       & ( (NOT SrF(nth(next(Input),n)) = expire(d)) 
+        IMPLIES  FrS(nth(Output,n))= FrS(nth(Input,n))+t)
+       & SrF(nth(Output, n)) =  timeout(d) 
+       & Exptimert(next(Input), next(Output))(t)(d)
+
+
+eqtltt: LEMMA (FORALL(A,B:TD,t:Time,n:nat): Tltt(A,B)(t) 
+               => FrS(str_nth(n,A))+t < FrS(str_nth(n,B)))
+
+eqteqt: LEMMA (FORALL(A,B:TD,t:Time,n:nat): Teqt(A,B)(t) 
+               => FrS(str_nth(n,A))+t = FrS(str_nth(n,B)))
+
+teqttltt: LEMMA (FORALL(A,B,C:TD, t:Time): Teqt(A,B)(t) & Tle(B, C) 
+               => Tltt(A, C)(t))
+
+eq_transfer: LEMMA (FORALL(A,B,C:TD, t:Time): Teq(A,B) & Teqt(B,C)(t) 
+	       => Teqt(A,C)(t))
+
+eq_tran: LEMMA (FORALL (A,B,C:TD,t:Time): Teqt(A,B)(t) & Teqt(B,C)(t) 
+               => Teqt(A, C)(t))
+
+leq_tra: LEMMA (FORALL (A,B,C:TD,t:Time): Tltt(A,B)(t) & Tltt(B,C)(t) 
+               => Tltt(A, C)(t))
+
+tg_tran: LEMMA (FORALL (A,B,C:TD,t:Time): Tgtt(A,B)(t) & Tgtt(B,C)(t) 
+                => Tgtt(A, C)(t))
+
+merge_transfer: LEMMA (FORALL(A,B,C,D,E,F:TD, t:Time,n:nat): Merge(A,B,C)(n) & 
+   Teqt(A, D)(t) & Teqt(B, E)(t) & Merge(D, E, F)(n) => Teqt(C, F)(t))
+
+LB_fifo1: THEOREM (FORALL(A,B,C,D,E:TD, t:Time,d:Data):
+Timert(A,C)(t)(d) & Fifo1(A,D) & SyncD(D,E) & Fifo1(C,E)
+  & Sync(D,B) => Deq(A,B) & Tltt(A,B)(t))
+
+timed_fifo: THEOREM (FORALL (A,B,C,D,E:TD, t:Time,d:Data):
+Fifo1(A,D) & Fifo1(D,E) & Sync(E,B) & SyncD(C,E) &  
+Teqt(A,C)(t) => Teqt(A,B)(t) & Tle(B,next(next(A))))
+
+timed_fifon1: THEOREM (FORALL (A,B,C,D,E:TD, t:Time,d:Data, n:nat):
+Fifon(A,E)(n+1) & Sync(E,B) & SyncD(C,E) & 
+Ttimern(A,C)(t)(d)(n+1) => Teqtn(A,B)(t)(n+1) & Deq(A,B)
+ & Tlen(B,next(A))(n+1))
+
+expire_fifo: THEOREM (FORALL(A,B,C,D,E,F,G,H:TD, t:Time,d:Data, 
+ n:nat):
+Sync(A,C) & Sync(C,F) & Fifo1(C,D) & Timert(F,G)(t)(d) &
+Lossysync(G,H)(n) & SyncD(D,H) & Lossysync(D,E)(n) & Sync(E,H) 
+& Sync(E,B) => Teqt(A,B)(t) & Tgt(B,A))
+
+nt_connector: THEOREM (FORALL (A,B,C,D,E,F,G,I,C1,D1:TD, t:Time,d:Data,n:nat): 
+   Sync(A,G) & Lossysync(G,E)(n) & Lossysync(G,F)(n) & Sync(E,I) &
+   Sync(F,I) & SyncD(G,I) & Merge(E,F,I)(n) & Sync(E,C) & Sync(F,D) &
+   Timert(C,C1)(t)(d) & Timert(D,D1)(t)(d) & Merge(C1,D1,B)(n) => Teqt(A,B)(t))
+
+End treo
+
+
+$$$reot.prf
+(treo
+ (str_nth1_TCC1 0
+  (str_nth1_TCC1-1 nil 3712123863 ("" (subtype-tcc) nil nil)
+   ((boolean nonempty-type-decl nil booleans nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (NOT const-decl "[bool -> bool]" booleans nil)
+    (number nonempty-type-decl nil numbers nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (>= const-decl "bool" reals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (int_minus_int_is_int application-judgement "int" integers nil)
+    (real_ge_is_total_order name-judgement "(total_order?[real])"
+     real_props nil))
+   nil))
+ (str_nth1_TCC2 0
+  (str_nth1_TCC2-1 nil 3712123863 ("" (termination-tcc) nil nil) nil
+   nil))
+ (Inc_UT 0
+  (Inc_UT-1 nil 3740760305 ("" (postpone) nil nil) nil shostak))
+ (Teqtn_TCC1 0
+  (Teqtn_TCC1-1 nil 3718532493 ("" (subtype-tcc) nil nil)
+   ((boolean nonempty-type-decl nil booleans nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (NOT const-decl "[bool -> bool]" booleans nil)
+    (number nonempty-type-decl nil numbers nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (> const-decl "bool" reals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (>= const-decl "bool" reals nil)
+    (nonneg_int nonempty-type-eq-decl nil integers nil)
+    (posnat nonempty-type-eq-decl nil integers nil)
+    (int_minus_int_is_int application-judgement "int" integers nil)
+    (real_gt_is_strict_total_order name-judgement
+     "(strict_total_order?[real])" real_props nil))
+   nil))
+ (Teqtn_TCC2 0
+  (Teqtn_TCC2-1 nil 3718532493 ("" (termination-tcc) nil nil) nil nil))
+ (eqtltt 0
+  (eqtltt-1 nil 3712123869
+   ("" (skosimp)
+    (("" (expand "Tltt")
+      (("" (expand "b2n") (("" (inst?) nil nil)) nil)) nil))
+    nil)
+   ((b2n const-decl "nbit" bit nil)
+    (number nonempty-type-decl nil numbers nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (>= const-decl "bool" reals nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (Tltt const-decl "bool" treo nil))
+   shostak))
+ (eqteqt 0
+  (eqteqt-1 nil 3712124119
+   ("" (skosimp)
+    (("" (expand "Teqt")
+      (("" (expand "b2n") (("" (inst?) nil nil)) nil)) nil))
+    nil)
+   ((b2n const-decl "nbit" bit nil)
+    (number nonempty-type-decl nil numbers nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (>= const-decl "bool" reals nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (Teqt const-decl "bool" treo nil))
+   shostak))
+ (teqttltt 0
+  (teqttltt-1 nil 3712124314
+   ("" (skosimp)
+    (("" (expand "Teqt")
+      (("" (expand "Tle")
+        (("" (expand "Tltt")
+          (("" (skosimp)
+            (("" (expand "b2n")
+              (("" (inst?)
+                (("" (assert)
+                  (("" (typepred "<")
+                    (("" (expand "strict_order?")
+                      (("" (flatten)
+                        (("" (expand "transitive?")
+                          (("" (assert) (("" (grind) nil nil)) nil))
+                          nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((number nonempty-type-decl nil numbers nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (>= const-decl "bool" reals nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (strict_order? const-decl "bool" orders nil)
+    (pred type-eq-decl nil defined_types nil)
+    (sequence type-eq-decl nil sequences nil)
+    (> const-decl "bool" reals nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (NOT const-decl "[bool -> bool]" booleans nil)
+    (str_nth const-decl "TD" treo nil)
+    (irreflexive? const-decl "bool" relations nil)
+    (transitive? const-decl "bool" relations nil)
+    (nnreal_plus_posreal_is_posreal application-judgement "posreal"
+     real_types nil)
+    (real_lt_is_strict_total_order name-judgement
+     "(strict_total_order?[real])" real_props nil)
+    (b2n const-decl "nbit" bit nil) (Tltt const-decl "bool" treo nil)
+    (Teqt const-decl "bool" treo nil))
+   shostak))
+ (eq_transfer 0
+  (eq_transfer-1 nil 3712124875
+   ("" (skosimp)
+    (("" (expand "Teq")
+      (("" (expand "Teqt")
+        (("" (expand "str_nth")
+          (("" (expand "nth")
+            (("" (expand "b2n")
+              (("" (expand "FrS") (("" (propax) nil nil)) nil)) nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((Teqt const-decl "bool" treo nil) (b2n const-decl "nbit" bit nil)
+    (str_nth const-decl "TD" treo nil))
+   shostak))
+ (eq_tran 0
+  (eq_tran-1 nil 3726319466
+   ("" (skosimp)
+    (("" (expand "Teqt")
+      (("" (skosimp)
+        (("" (expand "str_nth")
+          (("" (expand "nth")
+            (("" (expand "FrS") (("" (propax) nil nil)) nil)) nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((Teqt const-decl "bool" treo nil)
+    (str_nth const-decl "TD" treo nil) nil nil)
+   shostak))
+ (leq_tra 0
+  (leq_tra-1 nil 3726319501
+   ("" (skosimp)
+    (("" (expand "Tltt")
+      (("" (skosimp) (("" (expand "FrS") (("" (propax) nil nil)) nil))
+        nil))
+      nil))
+    nil)
+   ((Tltt const-decl "bool" treo nil) nil) shostak))
+ (tg_tran 0
+  (tg_tran-1 nil 3726319530
+   ("" (skosimp)
+    (("" (expand "Tgtt")
+      (("" (skosimp)
+        (("" (typepred "t!1")
+          (("" (expand "FrS") (("" (assert) nil nil)) nil)) nil))
+        nil))
+      nil))
+    nil)
+   ((Tgtt const-decl "bool" treo nil) nil
+    (> const-decl "bool" reals nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (>= const-decl "bool" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number nonempty-type-decl nil numbers nil)
+    (NOT const-decl "[bool -> bool]" booleans nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (nnreal_plus_posreal_is_posreal application-judgement "posreal"
+     real_types nil)
+    (real_gt_is_strict_total_order name-judgement
+     "(strict_total_order?[real])" real_props nil)
+    (real_ge_is_total_order name-judgement "(total_order?[real])"
+     real_props nil)
+    nil)
+   shostak))
+ (merge_transfer 0
+  (merge_transfer-1 nil 3712125074
+   ("" (skosimp)
+    (("" (expand "Merge")
+      (("" (expand "Teqt")
+        (("" (expand "next")
+          (("" (expand "b2n")
+            (("" (inst?)
+              (("" (skosimp)
+                (("" (expand "FrS") (("" (propax) nil nil)) nil)) nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((Teqt const-decl "bool" treo nil) (b2n const-decl "nbit" bit nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (>= const-decl "bool" reals nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number nonempty-type-decl nil numbers nil))
+   shostak))
+ (LB_fifo1 0
+  (LB_fifo1-1 nil 3712371939
+   ("" (skosimp)
+    (("" (expand "Timert")
+      (("" (expand "Fifo1")
+        (("" (expand "SyncD")
+          (("" (expand "Sync")
+            (("" (expand "next")
+              (("" (expand "Tle")
+                (("" (expand "Teq")
+                  (("" (expand "Deq")
+                    (("" (flatten)
+                      (("" (split)
+                        (("1" (inst -1 "t!1")
+                          (("1" (assert) nil nil)
+                           ("2" (assert) nil nil))
+                          nil)
+                         ("2" (expand "Tltt")
+                          (("2" (skosimp) (("2" (grind) nil nil)) nil))
+                          nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((Timert const-decl "bool" treo nil)
+    (Tltt const-decl "bool" treo nil)
+    (real_lt_is_strict_total_order name-judgement
+     "(strict_total_order?[real])" real_props nil)
+    (nnreal_plus_posreal_is_posreal application-judgement "posreal"
+     real_types nil)
+    (Teqt const-decl "bool" treo nil) (b2n const-decl "nbit" bit nil)
+    (str_nth const-decl "TD" treo nil)
+    (real_ge_is_total_order name-judgement "(total_order?[real])"
+     real_props nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (> const-decl "bool" reals nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (>= const-decl "bool" reals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number nonempty-type-decl nil numbers nil)
+    (AND const-decl "[bool, bool -> bool]" booleans nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil))
+   shostak))
+ (timed_fifo 0
+  (timed_fifo-1 nil 3712372712
+   ("" (skosimp)
+    (("" (expand "Fifo1")
+      (("" (expand "Sync")
+        (("" (expand "SyncD")
+          (("" (expand "Teqt")
+            (("" (expand "Tle")
+              (("" (expand "Teq")
+                (("" (expand "Deq")
+                  (("" (assert)
+                    (("" (flatten)
+                      (("" (split)
+                        (("1" (skosimp)
+                          (("1" (expand "str_nth")
+                            (("1" (expand "nth")
+                              (("1"
+                                (expand "FrS")
+                                (("1" (propax) nil nil))
+                                nil))
+                              nil))
+                            nil))
+                          nil)
+                         ("2" (expand "next")
+                          (("2" (assert)
+                            (("2" (expand "str_nth")
+                              (("2"
+                                (expand "nth")
+                                (("2"
+                                  (expand "FrS")
+                                  (("2" (propax) nil nil))
+                                  nil))
+                                nil))
+                              nil))
+                            nil))
+                          nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   (nil nil nil nil nil nil nil (str_nth const-decl "TD" treo nil) nil
+    (Teqt const-decl "bool" treo nil) nil)
+   shostak))
+ (timed_fifon1 0
+  (timed_fifon1-1 nil 3724557925
+   ("" (induct "n")
+    (("1" (skosimp)
+      (("1" (expand "Fifon")
+        (("1" (expand "Fifo1")
+          (("1" (expand "Sync")
+            (("1" (expand "SyncD")
+              (("1" (expand "Ttimern")
+                (("1" (expand "Teqtn")
+                  (("1" (expand "Tlen")
+                    (("1" (assert) (("1" (grind) nil nil)) nil)) nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil)
+     ("2" (skosimp*)
+      (("2" (expand Fifon -2)
+        (("2" (expand Ttimern -5)
+          (("2" (skosimp)
+            (("2" (inst?)
+              (("2" (assert)
+                (("2" (skosimp*)
+                  (("2" (assert) (("2" (grind) nil nil)) nil)) nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((nnint_plus_posint_is_posint application-judgement "posint"
+     integers nil)
+    (number nonempty-type-decl nil numbers nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (>= const-decl "bool" reals nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (pred type-eq-decl nil defined_types nil) nil
+    (sequence type-eq-decl nil sequences nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (> const-decl "bool" reals nil) nil nil
+    (IMPLIES const-decl "[bool, bool -> bool]" booleans nil)
+    (AND const-decl "[bool, bool -> bool]" booleans nil)
+    (nonneg_int nonempty-type-eq-decl nil integers nil)
+    (posnat nonempty-type-eq-decl nil integers nil) nil
+    (numfield nonempty-type-eq-decl nil number_fields nil)
+    (+ const-decl "[numfield, numfield -> numfield]" number_fields nil)
+    nil nil nil nil nil (Ttimern def-decl "bool" treo nil)
+    (Teqtn def-decl "bool" treo nil) nil
+    (Tlen def-decl "bool" treo nil) nil
+    (nat_induction formula-decl nil naturalnumbers nil)
+    (posint_plus_nnint_is_posint application-judgement "posint"
+     integers nil)
+    (even_plus_odd_is_odd application-judgement "odd_int" integers nil)
+    (Timert const-decl "bool" treo nil) nil
+    (Teqt const-decl "bool" treo nil) (b2n const-decl "nbit" bit nil)
+    nil (str_nth const-decl "TD" treo nil) nil nil nil
+    (int_minus_int_is_int application-judgement "int" integers nil)
+    (odd_plus_odd_is_even application-judgement "even_int" integers
+     nil))
+   shostak))
+ (expire_fifo 0
+  (expire_fifo-1 nil 3712373381
+   ("" (induct "n")
+    (("1" (skosimp)
+      (("1" (expand Fifo1 -3)
+        (("1" (expand "Lossysync")
+          (("1" (expand "Sync")
+            (("1" (expand "SyncD")
+              (("1" (expand "Timert")
+                (("1" (expand "Teq")
+                  (("1" (expand "Teqt")
+                    (("1" (expand "Tgt")
+                      (("1" (assert)
+                        (("1" (split)
+                          (("1" (skosimp)
+                            (("1" (inst? -10)
+                              (("1"
+                                (skosimp)
+                                (("1" (assert) nil nil))
+                                nil))
+                              nil))
+                            nil)
+                           ("2" (assert)
+                            (("2" (inst? -5)
+                              (("2"
+                                (skosimp)
+                                (("2" (assert) nil nil))
+                                nil))
+                              nil))
+                            nil))
+                          nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil)
+     ("2" (skosimp*)
+      (("2" (inst? -1)
+        (("2" (expand "Fifo1")
+          (("2" (assert)
+            (("2" (expand "Teqt")
+              (("2" (expand "Tgt")
+                (("2" (skosimp)
+                  (("2" (assert)
+                    (("2" (split)
+                      (("1" (skosimp)
+                        (("1" (typepred "t!1")
+                          (("1" (inst? -3)
+                            (("1" (assert) (("1" (grind) nil nil))
+                              nil))
+                            nil))
+                          nil))
+                        nil)
+                       ("2" (assert)
+                        (("2" (typepred ">")
+                          (("2" (expand "strict_order?")
+                            (("2" (flatten)
+                              (("2"
+                                (expand "transitive?")
+                                (("2"
+                                  (assert)
+                                  (("2" (grind) nil nil))
+                                  nil))
+                                nil))
+                              nil))
+                            nil))
+                          nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((NOT const-decl "[bool -> bool]" booleans nil)
+    (real_gt_is_strict_total_order name-judgement
+     "(strict_total_order?[real])" real_props nil)
+    (real_ge_is_total_order name-judgement "(total_order?[real])"
+     real_props nil)
+    nil nil nil nil (b2n const-decl "nbit" bit nil) nil
+    (str_nth const-decl "TD" treo nil) nil nil
+    (strict_order? const-decl "bool" orders nil)
+    (irreflexive? const-decl "bool" relations nil)
+    (transitive? const-decl "bool" relations nil)
+    (posint_plus_nnint_is_posint application-judgement "posint"
+     integers nil)
+    nil
+    (nnreal_plus_posreal_is_posreal application-judgement "posreal"
+     real_types nil)
+    (real_lt_is_strict_total_order name-judgement
+     "(strict_total_order?[real])" real_props nil)
+    (nnint_plus_posint_is_posint application-judgement "posint"
+     integers nil)
+    (nat_induction formula-decl nil naturalnumbers nil) nil
+    (Teqt const-decl "bool" treo nil) nil nil
+    (Timert const-decl "bool" treo nil) nil nil
+    (AND const-decl "[bool, bool -> bool]" booleans nil)
+    (IMPLIES const-decl "[bool, bool -> bool]" booleans nil) nil nil
+    (> const-decl "bool" reals nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (sequence type-eq-decl nil sequences nil) nil
+    (pred type-eq-decl nil defined_types nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (>= const-decl "bool" reals nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number nonempty-type-decl nil numbers nil))
+   shostak))
+ (nt_connector 0
+  (nt_connector-1 nil 3712372486
+   ("" (induct "n")
+    (("1" (skosimp)
+      (("1" (expand "Lossysync")
+        (("1" (expand "Merge")
+          (("1" (expand "Sync")
+            (("1" (expand "SyncD")
+              (("1" (flatten)
+                (("1" (assert)
+                  (("1" (split)
+                    (("1" (expand "next")
+                      (("1" (expand "suffix")
+                        (("1" (expand "nth")
+                          (("1" (expand "Teqt")
+                            (("1" (assert)
+                              (("1"
+                                (skosimp)
+                                (("1"
+                                  (assert)
+                                  (("1"
+                                    (expand "str_nth")
+                                    (("1" (grind) nil nil))
+                                    nil))
+                                  nil))
+                                nil))
+                              nil))
+                            nil))
+                          nil))
+                        nil))
+                      nil)
+                     ("2" (expand "Teqt")
+                      (("2" (skosimp)
+                        (("2" (assert) (("2" (grind) nil nil)) nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil)
+     ("2" (skosimp*)
+      (("2" (expand "Teqt")
+        (("2" (inst?)
+          (("2" (inst?)
+            (("2" (inst?)
+              (("2" (inst?)
+                (("2" (inst?)
+                  (("2" (skosimp)
+                    (("2" (assert)
+                      (("2" (split)
+                        (("1" (inst?) nil nil)
+                         ("2" (typepred "j!1")
+                          (("2" (assert) (("2" (grind) nil nil)) nil))
+                          nil)
+                         ("3" (assert) (("3" (grind) nil nil)) nil)
+                         ("4" (assert) (("4" (grind) nil nil)) nil)
+                         ("5" (assert) (("5" (grind) nil nil)) nil)
+                         ("6" (grind) nil nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((number nonempty-type-decl nil numbers nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (>= const-decl "bool" reals nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (pred type-eq-decl nil defined_types nil)
+    (sequence type-eq-decl nil sequences nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (> const-decl "bool" reals nil)
+    (IMPLIES const-decl "[bool, bool -> bool]" booleans nil)
+    (AND const-decl "[bool, bool -> bool]" booleans nil)
+    (Timert const-decl "bool" treo nil)
+    (Teqt const-decl "bool" treo nil)
+    (nat_induction formula-decl nil naturalnumbers nil)
+    (nnint_plus_posint_is_posint application-judgement "posint"
+     integers nil)
+    (str_nth const-decl "TD" treo nil)
+    (nnreal_plus_posreal_is_posreal application-judgement "posreal"
+     real_types nil)
+    (real_lt_is_strict_total_order name-judgement
+     "(strict_total_order?[real])" real_props nil)
+    (real_gt_is_strict_total_order name-judgement
+     "(strict_total_order?[real])" real_props nil)
+    (posint_plus_nnint_is_posint application-judgement "posint"
+     integers nil)
+    (real_ge_is_total_order name-judgement "(total_order?[real])"
+     real_props nil)
+    (b2n const-decl "nbit" bit nil)
+    (NOT const-decl "[bool -> bool]" booleans nil))
+   shostak)))
+

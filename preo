@@ -1,0 +1,1174 @@
+
+%% PVS Version 6.0 - International Allegro CL Enterprise Edition 9.0 [Linux (x86)] (Jan 14, 2013 3:16)
+%% 9.0 [Linux (x86)] (Jan 14, 2013 3:16)
+$$$preo.pvs
+reop[T:TYPE+,(IMPORTING measure_integration@subset_algebra_def[T])
+                  S:sigma_algebra, (IMPORTING probability@probability_measure[T,S])
+         P:probability_measure]: THEORY 
+BEGIN 
+ IMPORTING probability@probability_space[T,S,P], 
+           probability@probability_measure[T,S],
+	    continuous_functions_aux[real],
+             measure_integration@measure_space[T,S],
+             measure_integration@measure_props[T,S,to_measure(P)],
+             measure_integration@real_borel
+
+
+Time: Type = posreal
+Data: TYPE = [T->real]
+
+i, n: var nat;
+x,y: VAR real;
+z,t: VAR T
+X,Y: VAR random_variable
+
+dfs?(F:[real->probability]):bool = EXISTS X: FORALL x: F(x) = P(X <= x)
+
+df: TYPE+ = (dfs?) CONTAINING (LAMBDA x: IF x < 0 THEN 0 ELSE 1 ENDIF)
+
+DD: TYPE= [Data, df]
+
+oah(x): probability= 1/2
+
+TDD: TYPE = [# T: sequence[Time],
+               D: sequence[DD] #]
+
+Input, T1, T2, TD, TD1, Output: VAR TDD
+
+<: (strict_order?[sequence[Time]])
+>: (strict_order?[sequence[Time]]) = 
+     LAMBDA (s1, s2: sequence[Time]): s2 < s1
+
+Teq(Input,Output): bool= T(Input) = T(Output)
+Tle(Input,Output): bool = T(Input) < T(Output)
+Tgt(Input, Output): bool = T(Input) > T(Output)
+Tneq(Input,Output): bool = T(Input) /= T(Output)  
+Deq(Input, Output): bool= D(Input) = D(Output)
+Dneq(Input, Output): bool= D(Input) /= D(Output);
+
+
+A: TYPE= Time 
+B: TYPE = Data
+
+pair: TYPE = [A,B]
+ArB:[pair -> A]; 
+BrA:[pair -> B]; 
+e?(T1)(e:Data): bool = FORALL(a:Time,e:Data): BrA(a,e)=e
+FrS(T1):bool =  FORALL (a:Time, b:Data): ArB(a,b)=a
+SrF(T1):bool =  FORALL (a:Time, b:Data): BrA(a,b)=b
+
+
+seq: var sequence[T];
+suffix(seq, n): sequence[T]  = (LAMBDA i:seq(i+n))
+
+next(T1): TDD = T1 WITH [T:=(suffix(T1`T, 1)),
+                         D:=(suffix(T1`D, 1))]
+
+nth(T1,n): TDD=  T1 WITH [T:= (suffix(T1`T, n)),
+                          D:= (suffix(T1`D, n))];
+
+Input1, Input2: VAR TDD
+
+str_nth1(n,TD1): RECURSIVE TDD = 
+	        	IF n=0 THEN TD1 
+	        	ELSE str_nth1(n-1, next(TD1))
+	        	ENDIF 
+		MEASURE n
+
+str_nth(n, TD1): TDD= nth(str_nth1(n,TD1), n)
+
+Teqt(T1,T2)(t:Time): bool = FORALL (n:nat): FrS(str_nth(n,T1)) + t = 
+                                          FrS(str_nth(n,T2))
+Tltt(T1,T2)(t:Time): bool = FORALL(n:nat): FrS(str_nth(n,T1)) + t < 
+                                          FrS(str_nth(n,T2))
+Tgtt(T1,T2)(t:Time): bool = FORALL (n:nat): FrS(str_nth(n,T1)) + t > 
+                                          FrS(str_nth(n,T2))
+
+pat: VAR setof[Data];
+member(pat): bool = EXISTS (DI: Data): pat(DI) 
+
+Sync(Input, Output): bool = Teq(Input, Output) & 
+	     	            Deq(Input, Output)
+
+SyncD(Input1, Input2): bool = Teq(Input1, Input2)
+	     	            
+zero: random_variable = (LAMBDA t: 0)
+one:  random_variable = (LAMBDA t: 1)
+
+RSync(Input, Output): bool= FORALL(n:nat):
+Output`D(n) = (zero, oah)
+OR Output`D(n) = (one, oah)
+&  Teq(Input, Output)
+
+c: VAR Data
+CSync(Input, Output)(p:probability): INDUCTIVE bool= 
+(Output`T(0)= Input`T(0) & 
+Output`D(0) = (Input`D(0)`1, (1-p)*Input`D(0)`2)) OR
+(EXISTS(c:Data):Output`D(0) = (c, (p)*Input`D(0)`2)
+& CSync(next(Input), next(Output))(p))
+
+PLSync(Input, Output)(q:probability): INDUCTIVE bool=
+(Output`T(0)= Input`T(0) &
+Output`D(0) = (Input`D(0)`1, (1-q)*Input`D(0)`2) & 
+PLSync(next(Input), next(Output))(q))
+& (Output`D(0)`2 = (q)*Input`D(0)`2 =>
+                         PLSync(next(Input), Output)(q))
+
+FFifo(Input, Output)(r:probability):INDUCTIVE bool=
+(Output`T(0) > Input`T(0) & Output`T(0) < Input`T(1) &
+Output`D(0) = (Input`D(0)`1, (1-r)*Input`D(0)`2) & 
+FFifo(next(Input), next(Output))(r))
+& (Output`D(0)`2= (r)*Input`D(0)`2 => 
+ FFifo(next(Input), Output)(r))
+
+Fifo1(Input,Output):bool= Tle(Input,Output) &
+Tle(Output,next(Input)) & Deq(Input,Output)
+
+LSync(Input, Output)(n:nat): INDUCTIVE bool = 
+                   (Output`D(n) = Input`D(n) 
+		 & LSync(next(Input), next(Output))(n))
+	         OR LSync(next(Input), Output)(n)
+
+A, B, C, C1, C2, D, E, F,G, H, inp, I, out: VAR TDD;
+
+Merge(s1,s2,s3:TDD): INDUCTIVE bool=                          
+(NOT s1`T(0)= s2`T(0)) &
+    (s1`T(0) < s2`T(0) =>    
+        s3`T(0) = s1`T(0) &  s3`D(0) = s1`D(0) 
+     & Merge(next(s1), s2, next(s3)))
+    & (s1`T(0) > s2`T(0) =>  
+              s3`T(0) = s2`T(0) & s3`D(0) = s2`D(0) & 
+                 Merge(s1, next(s2), next(s3)))
+
+p,q,r: probability
+
+proba: Theorem Sync(inp, I)  & Sync(inp, C) & Sync(C,A) & 
+LSync(C, I)(n) & Fifo1(C,E) & Fifo1(E,F) & LSync(F, C)(n)
+& Fifo1(I,H) & Sync(H,G) & SyncD(G,B) & Sync(G,E) &
+ FFifo(A,B)(r) & Sync(B,out) => 
+out`D(0)`1 = inp`D(0)`1 & Tle(inp, out)
+
+refinement: THEOREM FORALL (A,B,C:TDD): (EXISTS (D:TDD): 
+Fifo1(A,D) & RSync(D, B) & RSync(D,C)) =>
+(EXISTS (E,F:TDD): (Fifo1(A,E) & RSync(E,B)) & 
+         (Fifo1(A,F) & RSync(F,C)))
+
+timeout:[Data->bool]
+Timert(Input,Output)(t:Time)(d:Data): bool =
+                  FORALL(n:nat): FrS(str_nth(n,Input)) + t < 
+        FrS(str_nth(n,(next(Input)))) & Teqt(Input,Output)(t)
+                 & SrF(str_nth(n,Output)) = timeout(d)
+
+
+Tfifo(A,B)(t:Time)(d:Data): bool=EXISTS (R,S:TDD):
+Fifo1(A,R) & SyncD(R, S) & Timert(A,S)(t)(d) &
+Sync(R,B)
+
+Lemma1: LEMMA FORALL(A,B:TDD)(t:Time)(d:Data): EXISTS (E:TDD): 
+RSync(A,E) & Tfifo(E,B)(t)(d) <=> RSync(A,E) & 
+EXISTS(C,D:TDD): Fifo1(E,D) &
+SyncD(D,C) & Timert(E,C)(t)(d) & Sync(D,B)
+
+Lemma2: LEMMA FORALL(A,B:TDD)(t:Time)(d:Data): EXISTS (E:TDD): 
+Tfifo(A,E)(t)(d) & RSync(E,B) <=> EXISTS(C,D:TDD): Fifo1(A,D) &
+SyncD(D,C) & Timert(A,C)(t)(d) & Sync(D,E) & RSync(E,B) 
+
+equi: Theorem FORALL(A,B:TDD)(t:Time)(d:Data): Exists (E:TDD): RSync(A, E) & 
+Tfifo(E,B)(t)(d) <=> exists (R:TDD): Tfifo(A,R)(t)(d) & RSync(R, B)
+
+
+end reop
+
+$$$preo.prf
+(reop
+ (df_TCC1 0
+  (df_TCC1-1 nil 3748653766
+   ("" (expand "dfs?")
+    (("" (inst + "lambda(t:T):0")
+      (("1" (skosimp)
+        (("1" (expand "<=")
+          (("1" (case-replace "0<=x!1")
+            (("1" (lemma "P_fullset" ("P" "P"))
+              (("1" (expand "fullset") (("1" (assert) nil nil)) nil))
+              nil)
+             ("2" (lemma "P_emptyset" ("P" "P"))
+              (("2" (expand "emptyset") (("2" (assert) nil nil)) nil))
+              nil))
+            nil))
+          nil))
+        nil)
+       ("2" (lemma "constant_is_measurable")
+        (("2" (inst - "LAMBDA(t:T):0")
+          (("2" (expand "constant?")
+            (("2" (expand "const_fun") (("2" (inst?) nil nil)) nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((measurable_function? const-decl "bool" measure_space_def
+     "measure_integration/")
+    (S formal-const-decl "sigma_algebra" reop nil)
+    (sigma_algebra nonempty-type-eq-decl nil subset_algebra_def
+     "measure_integration/")
+    (sigma_algebra? const-decl "bool" subset_algebra_def
+     "measure_integration/")
+    (setofsets type-eq-decl nil sets nil)
+    (setof type-eq-decl nil defined_types nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number nonempty-type-decl nil numbers nil)
+    (T formal-nonempty-type-decl nil reop nil)
+    (random_variable nonempty-type-eq-decl nil probability_measure
+     "probability/")
+    (<= const-decl "(S)" probability_space "probability/")
+    (P_emptyset formula-decl nil probability_measure "probability/")
+    (emptyset const-decl "set" sets nil)
+    (P formal-const-decl "probability_measure" reop nil)
+    (probability_measure nonempty-type-eq-decl nil probability_measure
+     "probability/")
+    (probability_measure? const-decl "bool" probability_measure
+     "probability/")
+    (probability nonempty-type-eq-decl nil probability_measure
+     "probability/")
+    (nnreal type-eq-decl nil real_types nil)
+    (>= const-decl "bool" reals nil)
+    (P_fullset formula-decl nil probability_measure "probability/")
+    (real_lt_is_strict_total_order name-judgement
+     "(strict_total_order?[real])" real_props nil)
+    (real_le_is_total_order name-judgement "(total_order?[real])"
+     real_props nil)
+    (fullset const-decl "set" sets nil)
+    (<= const-decl "bool" reals nil)
+    (constant? const-decl "bool" const_fun_def "structures/")
+    (const_fun const-decl "[S -> T]" const_fun_def "structures/")
+    (constant_is_measurable judgement-tcc nil measure_space_def
+     "measure_integration/")
+    (dfs? const-decl "bool" reop nil))
+   nil))
+ (lessp_TCC1 0
+  (lessp_TCC1-1 nil 3743996663
+   ("" (inst 1 "LAMBDA (x,y:sequence[Time]):FALSE")
+    (("" (grind) nil nil)) nil)
+   ((irreflexive? const-decl "bool" relations nil)
+    (transitive? const-decl "bool" relations nil)
+    (FALSE const-decl "bool" booleans nil)
+    (strict_order? const-decl "bool" orders nil)
+    (pred type-eq-decl nil defined_types nil)
+    (sequence type-eq-decl nil sequences nil)
+    (Time type-eq-decl nil reop nil) (> const-decl "bool" reals nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (>= const-decl "bool" reals nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number nonempty-type-decl nil numbers nil))
+   nil))
+ (greaterp_TCC1 0
+  (greaterp_TCC1-1 nil 3743996663
+   ("" (expand "strict_order?")
+    (("" (typepred "<")
+      (("" (expand "strict_order?")
+        (("" (flatten)
+          (("" (split)
+            (("1" (expand "irreflexive?") (("1" (propax) nil nil)) nil)
+             ("2" (expand "transitive?")
+              (("2" (skeep)
+                (("2" (inst -4 "z" "y" "x") (("2" (assert) nil nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((< const-decl "(strict_order?[sequence[Time]])" reop nil)
+    (pred type-eq-decl nil defined_types nil)
+    (sequence type-eq-decl nil sequences nil)
+    (Time type-eq-decl nil reop nil) (> const-decl "bool" reals nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (>= const-decl "bool" reals nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number nonempty-type-decl nil numbers nil)
+    (NOT const-decl "[bool -> bool]" booleans nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (transitive? const-decl "bool" relations nil)
+    (irreflexive? const-decl "bool" relations nil)
+    (strict_order? const-decl "bool" orders nil))
+   nil))
+ (str_nth1_TCC1 0
+  (str_nth1_TCC1-1 nil 3748672299 ("" (subtype-tcc) nil nil)
+   ((boolean nonempty-type-decl nil booleans nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (NOT const-decl "[bool -> bool]" booleans nil)
+    (number nonempty-type-decl nil numbers nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (>= const-decl "bool" reals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (int_minus_int_is_int application-judgement "int" integers nil)
+    (real_ge_is_total_order name-judgement "(total_order?[real])"
+     real_props nil))
+   nil))
+ (str_nth1_TCC2 0
+  (str_nth1_TCC2-1 nil 3748672299 ("" (termination-tcc) nil nil) nil
+   nil))
+ (zero_TCC1 0
+  (zero_TCC1-1 nil 3743996663
+   ("" (lemma "constant_is_measurable")
+    (("" (inst - "LAMBDA t:0")
+      (("" (expand "constant?")
+        (("" (expand "const_fun")
+          (("" (assert) (("" (inst?) nil nil)) nil)) nil))
+        nil))
+      nil))
+    nil)
+   ((number nonempty-type-decl nil numbers nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (constant? const-decl "bool" const_fun_def "structures/")
+    (const_fun const-decl "[S -> T]" const_fun_def "structures/")
+    (constant_is_measurable judgement-tcc nil measure_space_def
+     "measure_integration/")
+    (T formal-nonempty-type-decl nil reop nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (setof type-eq-decl nil defined_types nil)
+    (setofsets type-eq-decl nil sets nil)
+    (sigma_algebra? const-decl "bool" subset_algebra_def
+     "measure_integration/")
+    (sigma_algebra nonempty-type-eq-decl nil subset_algebra_def
+     "measure_integration/")
+    (S formal-const-decl "sigma_algebra" reop nil))
+   nil))
+ (one_TCC1 0
+  (one_TCC1-1 nil 3743996663
+   ("" (lemma "constant_is_measurable")
+    (("" (inst - "LAMBDA t:1")
+      (("" (expand "constant?")
+        (("" (expand "const_fun")
+          (("" (assert) (("" (inst?) nil nil)) nil)) nil))
+        nil))
+      nil))
+    nil)
+   ((number nonempty-type-decl nil numbers nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (constant? const-decl "bool" const_fun_def "structures/")
+    (const_fun const-decl "[S -> T]" const_fun_def "structures/")
+    (constant_is_measurable judgement-tcc nil measure_space_def
+     "measure_integration/")
+    (T formal-nonempty-type-decl nil reop nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (setof type-eq-decl nil defined_types nil)
+    (setofsets type-eq-decl nil sets nil)
+    (sigma_algebra? const-decl "bool" subset_algebra_def
+     "measure_integration/")
+    (sigma_algebra nonempty-type-eq-decl nil subset_algebra_def
+     "measure_integration/")
+    (S formal-const-decl "sigma_algebra" reop nil))
+   nil))
+ (proba 0
+  (lkj "klo" 3748904569
+   ("" (induct "n")
+    (("1" (skosimp)
+      (("1" (expand "Sync")
+        (("1" (expand "LSync")
+          (("1" (expand "Fifo1")
+            (("1" (expand "FFifo")
+              (("1" (expand "SyncD")
+                (("1" (expand "Teq")
+                  (("1" (expand "Deq")
+                    (("1" (expand "Tle")
+                      (("1" (assert)
+                        (("1" (flatten)
+                          (("1" (hide -7 -14- -26 -27)
+                            (("1" (hide -13)
+                              (("1"
+                                (split)
+                                (("1"
+                                  (typepred "P")
+                                  (("1"
+                                    (expand "probability_measure?")
+                                    (("1"
+                                      (assert)
+                                      (("1"
+                                        (flatten)
+                                        (("1"
+                                          (expand
+                                           "probability_measure_full?")
+                                          (("1"
+                                            (expand "finite_measure?")
+                                            (("1"
+                                              (flatten)
+                                              (("1" (grind) nil nil))
+                                              nil))
+                                            nil))
+                                          nil))
+                                        nil))
+                                      nil))
+                                    nil))
+                                  nil)
+                                 ("2" (assert) nil nil))
+                                nil))
+                              nil))
+                            nil))
+                          nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil)
+     ("2" (skosimp*)
+      (("2" (inst?)
+        (("2" (inst?)
+          (("2" (inst?)
+            (("2" (inst?)
+              (("2" (inst?)
+                (("2" (assert)
+                  (("2" (expand "Sync")
+                    (("2" (expand "LSync")
+                      (("2" (expand "Fifo1")
+                        (("2" (expand "SyncD")
+                          (("2" (expand "FFifo")
+                            (("2" (expand "Teq")
+                              (("2"
+                                (expand "Deq")
+                                (("2"
+                                  (assert)
+                                  (("2"
+                                    (flatten)
+                                    (("2"
+                                      (hide -1)
+                                      (("2"
+                                        (hide -7 -14 -27)
+                                        (("2"
+                                          (split)
+                                          (("1"
+                                            (typepred "P")
+                                            (("1"
+                                              (expand
+                                               "probability_measure?")
+                                              (("1"
+                                                (assert)
+                                                (("1"
+                                                  (flatten)
+                                                  (("1"
+                                                    (expand
+                                                     "probability_measure_full?")
+                                                    (("1"
+                                                      (expand
+                                                       "finite_measure?")
+                                                      (("1"
+                                                        (flatten)
+                                                        (("1"
+                                                          (grind)
+                                                          nil
+                                                          nil))
+                                                        nil))
+                                                      nil))
+                                                    nil))
+                                                  nil))
+                                                nil))
+                                              nil))
+                                            nil)
+                                           ("2"
+                                            (expand "Tle")
+                                            (("2" (assert) nil nil))
+                                            nil))
+                                          nil))
+                                        nil))
+                                      nil))
+                                    nil))
+                                  nil))
+                                nil))
+                              nil))
+                            nil))
+                          nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((number nonempty-type-decl nil numbers nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (>= const-decl "bool" reals nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (pred type-eq-decl nil defined_types nil)
+    (T formal-nonempty-type-decl nil reop nil)
+    (Data type-eq-decl nil reop nil)
+    (nnreal type-eq-decl nil real_types nil)
+    (<= const-decl "bool" reals nil)
+    (setof type-eq-decl nil defined_types nil)
+    (setofsets type-eq-decl nil sets nil)
+    (sigma_algebra? const-decl "bool" subset_algebra_def
+     "measure_integration/")
+    (sigma_algebra nonempty-type-eq-decl nil subset_algebra_def
+     "measure_integration/")
+    (S formal-const-decl "sigma_algebra" reop nil)
+    (probability nonempty-type-eq-decl nil probability_measure
+     "probability/")
+    (dfs? const-decl "bool" reop nil)
+    (df nonempty-type-eq-decl nil reop nil)
+    (DD type-eq-decl nil reop nil)
+    (sequence type-eq-decl nil sequences nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (> const-decl "bool" reals nil) (Time type-eq-decl nil reop nil)
+    (TDD type-eq-decl nil reop nil)
+    (IMPLIES const-decl "[bool, bool -> bool]" booleans nil)
+    (AND const-decl "[bool, bool -> bool]" booleans nil)
+    (Sync const-decl "bool" reop nil)
+    (LSync inductive-decl "bool" reop nil)
+    (Fifo1 const-decl "bool" reop nil)
+    (SyncD const-decl "bool" reop nil)
+    (FFifo inductive-decl "bool" reop nil)
+    (r const-decl "probability" reop nil)
+    (= const-decl "[T, T -> boolean]" equalities nil)
+    (Tle const-decl "bool" reop nil)
+    (nat_induction formula-decl nil naturalnumbers nil)
+    (nnint_plus_posint_is_posint application-judgement "posint"
+     integers nil)
+    (Deq const-decl "bool" reop nil)
+    (real_minus_real_is_real application-judgement "real" reals nil)
+    (real_lt_is_strict_total_order name-judgement
+     "(strict_total_order?[real])" real_props nil)
+    (real_gt_is_strict_total_order name-judgement
+     "(strict_total_order?[real])" real_props nil)
+    (sigma_algebra_IUnion_rew application-judgement "(S)" reop nil)
+    (finite_measure? const-decl "bool" generalized_measure_def
+     "measure_integration/")
+    (nnreal_plus_nnreal_is_nnreal application-judgement "nnreal"
+     real_types nil)
+    (sigma_nnreal application-judgement "nnreal" sigma_nat "reals/")
+    (int_minus_int_is_int application-judgement "int" integers nil)
+    (measurable_emptyset name-judgement "measurable_set[T, S]" reop
+     nil)
+    (subset_algebra_emptyset name-judgement "(S)" reop nil)
+    (finite_emptyset name-judgement "finite_set[T]" countable_setofsets
+     "sets_aux/")
+    (finite_emptyset name-judgement "finite_set[T]" countable_props
+     "sets_aux/")
+    (finite_emptyset name-judgement "finite_set" finite_sets nil)
+    (measurable_fullset name-judgement "measurable_set[T, S]" reop nil)
+    (subset_algebra_fullset name-judgement "(S)" reop nil)
+    (next const-decl "TDD" reop nil)
+    (O const-decl "T3" function_props nil)
+    (sigma def-decl "real" sigma "reals/")
+    (series const-decl "sequence[real]" series "series/")
+    (abs const-decl "{n: nonneg_real | n >= m AND n >= -m}" real_defs
+         nil)
+    (convergence const-decl "bool" convergence_sequences "analysis/")
+    (probability_measure_full? const-decl "bool" probability_measure
+     "probability/")
+    (P formal-const-decl "probability_measure" reop nil)
+    (probability_measure nonempty-type-eq-decl nil probability_measure
+     "probability/")
+    (probability_measure? const-decl "bool" probability_measure
+     "probability/")
+    (NOT const-decl "[bool -> bool]" booleans nil)
+    (Teq const-decl "bool" reop nil)
+    (posint_plus_nnint_is_posint application-judgement "posint"
+     integers nil))
+   shostak)
+  (id "id" 3744588415
+      ("" (induct "n")
+       (("1" (skosimp)
+         (("1" (expand "Sync")
+           (("1" (expand "LSync")
+             (("1" (expand "Fifo1")
+               (("1" (expand "SyncD")
+                 (("1" (expand "FFifo")
+                   (("1" (expand "Teq")
+                     (("1" (expand "Deq")
+                       (("1" (expand "Tle")
+                         (("1" (assert)
+                           (("1" (flatten)
+                             (("1" (hide -27)
+                               (("1"
+                                 (hide -7 -14)
+                                 (("1"
+                                   (split)
+                                   (("1" (grind) nil nil)
+                                    ("2"
+                                     (typepred "<")
+                                     (("2"
+                                       (expand "strict_order?")
+                                       (("2"
+                                         (flatten)
+                                         (("2"
+                                           (expand "transitive?")
+                                           (("2"
+                                             (inst?)
+                                             (("2"
+                                               (inst?)
+                                               (("2" (assert) nil nil))
+                                               nil))
+                                             nil))
+                                           nil))
+                                         nil))
+                                       nil))
+                                     nil))
+                                   nil))
+                                 nil))
+                               nil))
+                             nil))
+                           nil))
+                         nil))
+                       nil))
+                     nil))
+                   nil))
+                 nil))
+               nil))
+             nil))
+           nil))
+         nil)
+        ("2" (skosimp*)
+         (("2" (inst?)
+           (("2" (inst?)
+             (("2" (inst?)
+               (("2" (inst?)
+                 (("2" (inst?)
+                   (("2" (assert)
+                     (("2" (expand "Sync")
+                       (("2" (expand "LSync")
+                         (("2" (expand "Fifo1")
+                           (("2" (expand "SyncD")
+                             (("2" (expand "FFifo")
+                               (("2"
+                                 (expand "Teq")
+                                 (("2"
+                                   (expand "Deq")
+                                   (("2"
+                                     (assert)
+                                     (("2"
+                                       (flatten)
+                                       (("2"
+                                         (hide -1)
+                                         (("2"
+                                           (hide -7 -14 -27)
+                                           (("2"
+                                             (split)
+                                             (("1"
+                                               (assert)
+                                               (("1" (grind) nil nil))
+                                               nil)
+                                              ("2"
+                                               (expand "Tle")
+                                               (("2" (grind) nil nil))
+                                               nil))
+                                             nil))
+                                           nil))
+                                         nil))
+                                       nil))
+                                     nil))
+                                   nil))
+                                 nil))
+                               nil))
+                             nil))
+                           nil))
+                         nil))
+                       nil))
+                     nil))
+                   nil))
+                 nil))
+               nil))
+             nil))
+           nil))
+         nil))
+       nil)
+      ((posint_plus_nnint_is_posint application-judgement "posint"
+        integers nil)
+       (Teq const-decl "bool" reop nil)
+       (< const-decl "(strict_order?[sequence[Time]])" reop nil)
+       (strict_order? const-decl "bool" orders nil)
+       (NOT const-decl "[bool -> bool]" booleans nil)
+       (transitive? const-decl "bool" relations nil)
+       (next const-decl "TDD" reop nil)
+       (real_gt_is_strict_total_order name-judgement
+        "(strict_total_order?[real])" real_props nil)
+       (real_lt_is_strict_total_order name-judgement
+        "(strict_total_order?[real])" real_props nil)
+       (real_minus_real_is_real application-judgement "real" reals nil)
+       (Deq const-decl "bool" reop nil)
+       (nnint_plus_posint_is_posint application-judgement "posint"
+        integers nil)
+       (nat_induction formula-decl nil naturalnumbers nil)
+       (Tle const-decl "bool" reop nil)
+       (= const-decl "[T, T -> boolean]" equalities nil)
+       (r const-decl "probability" reop nil)
+       (FFifo inductive-decl "bool" reop nil)
+       (SyncD const-decl "bool" reop nil)
+       (Fifo1 const-decl "bool" reop nil)
+       (LSync inductive-decl "bool" reop nil)
+       (Sync const-decl "bool" reop nil)
+       (AND const-decl "[bool, bool -> bool]" booleans nil)
+       (IMPLIES const-decl "[bool, bool -> bool]" booleans nil)
+       (TDD type-eq-decl nil reop nil) (Time type-eq-decl nil reop nil)
+       (> const-decl "bool" reals nil)
+       (nonneg_real nonempty-type-eq-decl nil real_types nil)
+       (sequence type-eq-decl nil sequences nil)
+       (DD type-eq-decl nil reop nil)
+       (df nonempty-type-eq-decl nil reop nil)
+       (dfs? const-decl "bool" reop nil)
+       (P formal-const-decl "probability_measure" reop nil)
+       (probability_measure nonempty-type-eq-decl nil
+        probability_measure "probability/")
+       (probability_measure? const-decl "bool" probability_measure
+        "probability/")
+       (probability nonempty-type-eq-decl nil probability_measure
+        "probability/")
+       (<= const-decl "bool" reals nil)
+       (nnreal type-eq-decl nil real_types nil)
+       (S formal-const-decl "sigma_algebra" reop nil)
+       (sigma_algebra nonempty-type-eq-decl nil subset_algebra_def
+        "measure_integration/")
+       (sigma_algebra? const-decl "bool" subset_algebra_def
+        "measure_integration/")
+       (setofsets type-eq-decl nil sets nil)
+       (setof type-eq-decl nil defined_types nil)
+       (T formal-nonempty-type-decl nil reop nil)
+       (pred type-eq-decl nil defined_types nil)
+       (nat nonempty-type-eq-decl nil naturalnumbers nil)
+       (>= const-decl "bool" reals nil)
+       (bool nonempty-type-eq-decl nil booleans nil)
+       (int nonempty-type-eq-decl nil integers nil)
+       (integer_pred const-decl "[rational -> boolean]" integers nil)
+       (rational nonempty-type-from-decl nil rationals nil)
+       (rational_pred const-decl "[real -> boolean]" rationals nil)
+       (real nonempty-type-from-decl nil reals nil)
+       (real_pred const-decl "[number_field -> boolean]" reals nil)
+       (number_field nonempty-type-from-decl nil number_fields nil)
+       (number_field_pred const-decl "[number -> boolean]"
+        number_fields nil)
+       (boolean nonempty-type-decl nil booleans nil)
+       (number nonempty-type-decl nil numbers nil))
+      shostak)
+  (proba-1 nil 3743998050
+   ("" (induct "n")
+    (("1" (skosimp)
+      (("1" (assert)
+        (("1" (expand "Sync")
+          (("1" (expand "LSync")
+            (("1" (expand "FFifo")
+              (("1" (expand "SyncD")
+                (("1" (expand "Fifo1")
+                  (("1" (flatten)
+                    (("1" (expand "Teq")
+                      (("1" (expand "Tle")
+                        (("1" (expand "Deq") (("1" (assert) nil nil))
+                          nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil)
+     ("2" (skosimp*)
+      (("2" (inst?)
+        (("2" (inst?)
+          (("2" (inst?)
+            (("2" (inst?)
+              (("2" (inst?)
+                (("2" (expand "Sync")
+                  (("2" (expand "LSync")
+                    (("2" (expand "FFifo")
+                      (("2" (expand "SyncD")
+                        (("2" (expand "Fifo1")
+                          (("2" (flatten)
+                            (("2" (expand "Deq")
+                              (("2"
+                                (expand "Tle")
+                                (("2"
+                                  (expand "Teq")
+                                  (("2" (assert) nil nil))
+                                  nil))
+                                nil))
+                              nil))
+                            nil))
+                          nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((posint_plus_nnint_is_posint application-judgement "posint"
+     integers nil)
+    (Teq const-decl "bool" reop nil) (Deq const-decl "bool" reop nil)
+    (real_minus_real_is_real application-judgement "real" reals nil)
+    (Tle const-decl "bool" reop nil)
+    (nnint_plus_posint_is_posint application-judgement "posint"
+     integers nil)
+    (nat_induction formula-decl nil naturalnumbers nil)
+    (= const-decl "[T, T -> boolean]" equalities nil)
+    (FFifo inductive-decl "bool" reop nil)
+    (SyncD const-decl "bool" reop nil)
+    (Fifo1 const-decl "bool" reop nil)
+    (LSync inductive-decl "bool" reop nil)
+    (Sync const-decl "bool" reop nil)
+    (AND const-decl "[bool, bool -> bool]" booleans nil)
+    (IMPLIES const-decl "[bool, bool -> bool]" booleans nil)
+    (Time type-eq-decl nil reop nil) (> const-decl "bool" reals nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (probability nonempty-type-eq-decl nil probability_measure
+     "probability/")
+    (S formal-const-decl "sigma_algebra" reop nil)
+    (sigma_algebra nonempty-type-eq-decl nil subset_algebra_def
+     "measure_integration/")
+    (sigma_algebra? const-decl "bool" subset_algebra_def
+     "measure_integration/")
+    (setofsets type-eq-decl nil sets nil)
+    (setof type-eq-decl nil defined_types nil)
+    (<= const-decl "bool" reals nil)
+    (nnreal type-eq-decl nil real_types nil)
+    (sequence type-eq-decl nil sequences nil)
+    (T formal-nonempty-type-decl nil reop nil)
+    (pred type-eq-decl nil defined_types nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (>= const-decl "bool" reals nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number nonempty-type-decl nil numbers nil))
+   shostak))
+ (refinement 0
+  (refinement-1 nil 3749163012
+   ("" (skolem * ("A!1" "B!1" "C!1"))
+    (("" (flatten)
+      (("" (skolem!)
+        (("" (inst 1 "D!1" "D!1")
+          (("" (flatten)
+            (("" (split)
+              (("1" (propax) nil nil) ("2" (propax) nil nil)
+               ("3" (propax) nil nil) ("4" (propax) nil nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((T formal-nonempty-type-decl nil reop nil)
+    (number nonempty-type-decl nil numbers nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (Data type-eq-decl nil reop nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (>= const-decl "bool" reals nil)
+    (nnreal type-eq-decl nil real_types nil)
+    (<= const-decl "bool" reals nil)
+    (setof type-eq-decl nil defined_types nil)
+    (setofsets type-eq-decl nil sets nil)
+    (sigma_algebra? const-decl "bool" subset_algebra_def
+     "measure_integration/")
+    (sigma_algebra nonempty-type-eq-decl nil subset_algebra_def
+     "measure_integration/")
+    (S formal-const-decl "sigma_algebra" reop nil)
+    (probability nonempty-type-eq-decl nil probability_measure
+     "probability/")
+    (dfs? const-decl "bool" reop nil)
+    (df nonempty-type-eq-decl nil reop nil)
+    (DD type-eq-decl nil reop nil)
+    (sequence type-eq-decl nil sequences nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (> const-decl "bool" reals nil) (Time type-eq-decl nil reop nil)
+    (TDD type-eq-decl nil reop nil))
+   shostak))
+ (Lemma1 0
+  (Lemma1-1 nil 3748672314
+   ("" (skosimp*)
+    (("" (inst?)
+      (("" (typepred "t!1" "d!1")
+        (("" (assert)
+          (("" (typepred ">")
+            (("" (assert)
+              (("" (prop)
+                (("1" (assert)
+                  (("1" (inst?) (("1" (grind) nil nil)) nil)) nil)
+                 ("2" (assert) (("2" (grind) nil nil)) nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((T formal-nonempty-type-decl nil reop nil)
+    (number nonempty-type-decl nil numbers nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (Data type-eq-decl nil reop nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (>= const-decl "bool" reals nil)
+    (nnreal type-eq-decl nil real_types nil)
+    (<= const-decl "bool" reals nil)
+    (setof type-eq-decl nil defined_types nil)
+    (setofsets type-eq-decl nil sets nil)
+    (sigma_algebra? const-decl "bool" subset_algebra_def
+     "measure_integration/")
+    (sigma_algebra nonempty-type-eq-decl nil subset_algebra_def
+     "measure_integration/")
+    (S formal-const-decl "sigma_algebra" reop nil)
+    (probability nonempty-type-eq-decl nil probability_measure
+     "probability/")
+    (dfs? const-decl "bool" reop nil)
+    (df nonempty-type-eq-decl nil reop nil)
+    (DD type-eq-decl nil reop nil)
+    (sequence type-eq-decl nil sequences nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (> const-decl "bool" reals nil) (Time type-eq-decl nil reop nil)
+    (TDD type-eq-decl nil reop nil)
+    (real_gt_is_strict_total_order name-judgement
+     "(strict_total_order?[real])" real_props nil)
+    (real_ge_is_total_order name-judgement "(total_order?[real])"
+     real_props nil)
+    (Teq const-decl "bool" reop nil) (RSync const-decl "bool" reop nil)
+    (Tle const-decl "bool" reop nil) (next const-decl "TDD" reop nil)
+    (Deq const-decl "bool" reop nil) (Fifo1 const-decl "bool" reop nil)
+    (SyncD const-decl "bool" reop nil) (nth const-decl "TDD" reop nil)
+    (str_nth const-decl "TDD" reop nil)
+    (FrS const-decl "bool" reop nil) (b2n const-decl "nbit" bit nil)
+    (Teqt const-decl "bool" reop nil) (SrF const-decl "bool" reop nil)
+    (Timert const-decl "bool" reop nil)
+    (Sync const-decl "bool" reop nil)
+    (Tfifo const-decl "bool" reop nil)
+    (irreflexive? const-decl "bool" relations nil)
+    (transitive? const-decl "bool" relations nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (pred type-eq-decl nil defined_types nil)
+    (strict_order? const-decl "bool" orders nil)
+    (> const-decl "(strict_order?[sequence[Time]])" reop nil)
+    (NOT const-decl "[bool -> bool]" booleans nil))
+   shostak))
+ (Lemma2 0
+  (Lemma2-1 nil 3748672323
+   ("" (skosimp*)
+    (("" (inst?)
+      (("" (typepred "t!1" "d!1")
+        (("" (assert)
+          (("" (typepred ">")
+            (("" (assert)
+              (("" (prop)
+                (("1" (assert)
+                  (("1" (inst?) (("1" (grind) nil nil)) nil)) nil)
+                 ("2" (assert) (("2" (grind) nil nil)) nil)
+                 ("3" (assert) nil nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((T formal-nonempty-type-decl nil reop nil)
+    (number nonempty-type-decl nil numbers nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (Data type-eq-decl nil reop nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (>= const-decl "bool" reals nil)
+    (nnreal type-eq-decl nil real_types nil)
+    (<= const-decl "bool" reals nil)
+    (setof type-eq-decl nil defined_types nil)
+    (setofsets type-eq-decl nil sets nil)
+    (sigma_algebra? const-decl "bool" subset_algebra_def
+     "measure_integration/")
+    (sigma_algebra nonempty-type-eq-decl nil subset_algebra_def
+     "measure_integration/")
+    (S formal-const-decl "sigma_algebra" reop nil)
+    (probability nonempty-type-eq-decl nil probability_measure
+     "probability/")
+    (dfs? const-decl "bool" reop nil)
+    (df nonempty-type-eq-decl nil reop nil)
+    (DD type-eq-decl nil reop nil)
+    (sequence type-eq-decl nil sequences nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (> const-decl "bool" reals nil) (Time type-eq-decl nil reop nil)
+    (TDD type-eq-decl nil reop nil)
+    (real_gt_is_strict_total_order name-judgement
+     "(strict_total_order?[real])" real_props nil)
+    (real_ge_is_total_order name-judgement "(total_order?[real])"
+     real_props nil)
+    (real_minus_real_is_real application-judgement "real" reals nil)
+    (Tle const-decl "bool" reop nil) (next const-decl "TDD" reop nil)
+    (Deq const-decl "bool" reop nil) (Fifo1 const-decl "bool" reop nil)
+    (Teq const-decl "bool" reop nil) (SyncD const-decl "bool" reop nil)
+    (nth const-decl "TDD" reop nil) (str_nth const-decl "TDD" reop nil)
+    (FrS const-decl "bool" reop nil) (b2n const-decl "nbit" bit nil)
+    (Teqt const-decl "bool" reop nil) (SrF const-decl "bool" reop nil)
+    (Timert const-decl "bool" reop nil)
+    (Sync const-decl "bool" reop nil)
+    (Tfifo const-decl "bool" reop nil)
+    (RSync const-decl "bool" reop nil)
+    (irreflexive? const-decl "bool" relations nil)
+    (transitive? const-decl "bool" relations nil)
+    (> const-decl "(strict_order?[sequence[Time]])" reop nil)
+    (strict_order? const-decl "bool" orders nil)
+    (pred type-eq-decl nil defined_types nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (NOT const-decl "[bool -> bool]" booleans nil))
+   shostak))
+ (equi 0
+  (equi-1 nil 3748672302
+   ("" (skosimp*)
+    (("" (inst 1 "A!1")
+      (("" (use "Lemma1")
+        (("" (skolem!)
+          (("" (use "Lemma2")
+            (("" (skolem!)
+              (("" (flatten)
+                (("" (split)
+                  (("1" (skolem!)
+                    (("1" (skosimp)
+                      (("1" (assert) (("1" (grind) nil nil)) nil))
+                      nil))
+                    nil)
+                   ("2" (grind) nil nil) ("3" (grind) nil nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   ((Lemma1 formula-decl nil reop nil)
+    (Lemma2 formula-decl nil reop nil)
+    (RSync const-decl "bool" reop nil)
+    (Tfifo const-decl "bool" reop nil)
+    (Sync const-decl "bool" reop nil) (Tle const-decl "bool" reop nil)
+    (next const-decl "TDD" reop nil) (Deq const-decl "bool" reop nil)
+    (Fifo1 const-decl "bool" reop nil) (Teq const-decl "bool" reop nil)
+    (SyncD const-decl "bool" reop nil) (nth const-decl "TDD" reop nil)
+    (str_nth const-decl "TDD" reop nil)
+    (FrS const-decl "bool" reop nil) (b2n const-decl "nbit" bit nil)
+    (Teqt const-decl "bool" reop nil) (SrF const-decl "bool" reop nil)
+    (Timert const-decl "bool" reop nil)
+    (real_minus_real_is_real application-judgement "real" reals nil)
+    (TDD type-eq-decl nil reop nil) (Time type-eq-decl nil reop nil)
+    (> const-decl "bool" reals nil)
+    (nonneg_real nonempty-type-eq-decl nil real_types nil)
+    (sequence type-eq-decl nil sequences nil)
+    (DD type-eq-decl nil reop nil)
+    (df nonempty-type-eq-decl nil reop nil)
+    (dfs? const-decl "bool" reop nil)
+    (probability nonempty-type-eq-decl nil probability_measure
+     "probability/")
+    (S formal-const-decl "sigma_algebra" reop nil)
+    (sigma_algebra nonempty-type-eq-decl nil subset_algebra_def
+     "measure_integration/")
+    (sigma_algebra? const-decl "bool" subset_algebra_def
+     "measure_integration/")
+    (setofsets type-eq-decl nil sets nil)
+    (setof type-eq-decl nil defined_types nil)
+    (<= const-decl "bool" reals nil)
+    (nnreal type-eq-decl nil real_types nil)
+    (>= const-decl "bool" reals nil)
+    (bool nonempty-type-eq-decl nil booleans nil)
+    (Data type-eq-decl nil reop nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (number nonempty-type-decl nil numbers nil)
+    (T formal-nonempty-type-decl nil reop nil))
+   shostak)))
+
